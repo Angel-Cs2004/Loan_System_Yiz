@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Entornos virtuales
+env/
+venv/
+.venv/
+
+# Base de datos local y logs
+db.sqlite3
+*.log
+
+# Variables de entorno / secretos
+.env
+.env.*
+
+# Editores y sistema
+.idea/
+.vscode/
+.DS_Store
+
+# LaTeX (archivos de compilacion)
+*.aux
+*.out
+*.toc
+*.synctex.gz
