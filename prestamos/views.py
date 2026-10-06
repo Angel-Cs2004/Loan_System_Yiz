@@ -1,32 +1,85 @@
 from datetime import date
 
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import generics
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from users.permissions import EsAdministrador
 
-from .models import EstadoPrestamo, Prestamo, Recurso
-from .serializers import PrestamoCreateSerializer, PrestamoSerializer, RecursoSerializer
+from .models import Categoria, EjemplarFisico, EstadoEjemplar, EstadoPrestamo, FichaRecurso, PoliticaPrestamo, Prestamo
+from .serializers import (
+    CategoriaSerializer,
+    EjemplarFisicoSerializer,
+    FichaRecursoAdminSerializer,
+    FichaRecursoSerializer,
+    PoliticaPrestamoSerializer,
+    PrestamoCreateSerializer,
+    PrestamoSerializer,
+)
 from .services import calcular_fecha_limite
 
 
-class RecursoListView(generics.ListAPIView):
-    queryset = Recurso.objects.filter(disponible = True)
-    serializer_class = RecursoSerializer
-    permission_classes = [IsAuthenticated]
-
-class RecursoAdminListCreateView(generics.ListCreateAPIView):
-    queryset = Recurso.objects.all() 
-    serializer_class = RecursoSerializer
+class CategoriaAdminListCreateView(generics.ListCreateAPIView):
+    queryset = Categoria.objects.all()
+    serializer_class = CategoriaSerializer
     permission_classes = [EsAdministrador]
 
 
-class RecursoAdminDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Recurso.objects.all() 
-    serializer_class = RecursoSerializer
+class CategoriaAdminDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Categoria.objects.all()
+    serializer_class = CategoriaSerializer
+    permission_classes = [EsAdministrador]
+
+
+class PoliticaPrestamoAdminListCreateView(generics.ListCreateAPIView):
+    queryset = PoliticaPrestamo.objects.all()
+    serializer_class = PoliticaPrestamoSerializer
+    permission_classes = [EsAdministrador]
+
+
+class PoliticaPrestamoAdminDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = PoliticaPrestamo.objects.all()
+    serializer_class = PoliticaPrestamoSerializer
+    permission_classes = [EsAdministrador]
+
+
+class FichaRecursoListView(generics.ListAPIView):
+    queryset = FichaRecurso.objects.filter(estado_ficha='ACTIVA')
+    serializer_class = FichaRecursoSerializer
+    permission_classes = [IsAuthenticated]
+
+
+class FichaRecursoAdminListCreateView(generics.ListCreateAPIView):
+    queryset = FichaRecurso.objects.all()
+    serializer_class = FichaRecursoAdminSerializer
+    permission_classes = [EsAdministrador]
+
+
+class FichaRecursoAdminDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = FichaRecurso.objects.all()
+    serializer_class = FichaRecursoAdminSerializer
+    permission_classes = [EsAdministrador]
+
+
+class EjemplarFisicoAdminListCreateView(generics.ListCreateAPIView):
+    serializer_class = EjemplarFisicoSerializer
+    permission_classes = [EsAdministrador]
+
+    def get_queryset(self):
+        return EjemplarFisico.objects.filter(ficha_recurso_id=self.kwargs['ficha_id'])
+
+    def perform_create(self, serializer):
+        ficha = get_object_or_404(FichaRecurso, pk=self.kwargs['ficha_id'])
+        serializer.save(ficha_recurso=ficha)
+
+
+class EjemplarFisicoAdminDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = EjemplarFisico.objects.all()
+    serializer_class = EjemplarFisicoSerializer
     permission_classes = [EsAdministrador]
 
 
@@ -35,27 +88,42 @@ class PrestamoCreateView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
-        recurso = serializer.validated_data['recurso']
-        serializer.save(usuario=self.request.user,
-                           fecha_limite=calcular_fecha_limite(self.request.user))
-        recurso.disponible = False
-        recurso.save()
+        ficha = serializer.validated_data['ficha_recurso']
+        with transaction.atomic():
+            ejemplar = (
+                EjemplarFisico.objects
+                .select_for_update()
+                .filter(ficha_recurso=ficha, estado=EstadoEjemplar.DISPONIBLE)
+                .first()
+            )
+            if ejemplar is None:
+                raise ValidationError('No hay ejemplares disponibles de este recurso.')
+
+            prestamo = serializer.save(
+                usuario=self.request.user,
+                ejemplar_fisico=ejemplar,
+                fecha_limite=calcular_fecha_limite(self.request.user),
+            )
+            ejemplar.estado = EstadoEjemplar.PRESTADO
+            ejemplar.save(update_fields=['estado'])
+            return prestamo
 
 
 class MisPrestamosView(generics.ListAPIView):
     serializer_class = PrestamoSerializer
     permission_classes = [IsAuthenticated]
-    def get_queryset(self): 
+
+    def get_queryset(self):
         return Prestamo.objects.filter(usuario=self.request.user)
 
 
 class PrestamoListView(generics.ListAPIView):
     serializer_class = PrestamoSerializer
     permission_classes = [EsAdministrador]
+
     def get_queryset(self):
         queryset = Prestamo.objects.all()
         estado = self.request.query_params.get('estado')
-
         if estado:
             queryset = queryset.filter(estado=estado)
         return queryset
@@ -69,12 +137,14 @@ class PrestamoDetailView(generics.RetrieveDestroyAPIView):
 
 class PrestamoDevolucionView(APIView):
     permission_classes = [EsAdministrador]
+
     def post(self, request, pk):
-        prestamo = get_object_or_404(Prestamo, pk = pk)
-        prestamo.estado =  EstadoPrestamo.DEVUELTO
+        prestamo = get_object_or_404(Prestamo, pk=pk)
+        prestamo.estado = EstadoPrestamo.DEVUELTO
         prestamo.fecha_devolucion = date.today()
         prestamo.save()
-        prestamo.recurso.disponible = True
-        prestamo.recurso.save()
-        return Response(PrestamoSerializer(prestamo).data)
 
+        prestamo.ejemplar_fisico.estado = EstadoEjemplar.DISPONIBLE
+        prestamo.ejemplar_fisico.save(update_fields=['estado'])
+
+        return Response(PrestamoSerializer(prestamo).data)

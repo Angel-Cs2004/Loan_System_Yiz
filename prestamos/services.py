@@ -1,15 +1,8 @@
 from datetime import date, timedelta
 
-from users.models import TipoUsuario
+DIAS_POR_DEFECTO = 7
 
-
-DIAS_MAXIMOS_POR_TIPO = {
-    TipoUsuario.TEACHER:7, TipoUsuario.STUDENT:6,
-    TipoUsuario.ADMINISTRATIVE_STAFF: 10,
-    TipoUsuario.ADMINISTRATOR:2
-}
 
 def calcular_fecha_limite(usuario):
-    dias = usuario.get_max_loan_period() or 7
+    dias = usuario.get_max_loan_period() or DIAS_POR_DEFECTO
     return date.today() + timedelta(days=dias)
-
