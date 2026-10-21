@@ -46,7 +46,8 @@ class Usuario(AbstractUser):
 
     #Defino una función segun DDD
     def get_max_loan_period(self):
-        from prestamos.services import DIAS_MAXIMOS_POR_TIPO
-        return DIAS_MAXIMOS_POR_TIPO.get(self.tipo_usuario)
+        from prestamos.models import PoliticaPrestamo
+        politica = PoliticaPrestamo.objects.filter(tipo_usuario=self.tipo_usuario).first()
+        return politica.dias_maximo_prestamo if politica else None
 
     objects = UsuarioManager()
