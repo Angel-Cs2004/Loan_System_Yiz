@@ -5,6 +5,9 @@ import UsersList from './components/UsersList'
 import Policies from './components/Policies'
 import Resources from './components/Resources'
 import Loans from './components/Loans'
+import styles from './App.module.css'
+import ui from './styles/components.module.css'
+import loginStyles from './components/Login.module.css'
 
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false)
@@ -22,11 +25,11 @@ export default function App() {
     return () => { active = false }
   }, [])
   const signOut = async () => { try { await logout() } catch { /* El token local se elimina incluso si falla el cierre remoto. */ }; setAuthenticated(false) }
-  if (checkingSession) return <main className="login-page">Verificando sesión…</main>
+  if (checkingSession) return <main className={loginStyles['login-page']}>Verificando sesión…</main>
   if (!authenticated) return <Login onLoginSuccess={() => setAuthenticated(true)} />
   const tabs = [['resources', 'Recursos'], ['policies', 'Políticas'], ['loans', 'Préstamos'], ['users', 'Usuarios']]
-  return <div className="app-shell"><header className="topbar"><div><span className="eyebrow">LOAN SYSTEM</span><h1>Panel de administración</h1></div><button className="button secondary" onClick={signOut}>Cerrar sesión</button></header>
-    <nav className="tabs" aria-label="Secciones">{tabs.map(([key, label]) => <button key={key} className={section === key ? 'tab active' : 'tab'} onClick={() => setSection(key)}>{label}</button>)}</nav>
+  return <div className={styles.appShell}><header className={styles.topbar}><div><span className={ui.eyebrow}>LOAN SYSTEM</span><h1>Panel de administración</h1></div><button className={`${ui.button} ${ui.secondary}`} onClick={signOut}>Cerrar sesión</button></header>
+    <nav className={styles.tabs} aria-label="Secciones">{tabs.map(([key, label]) => <button key={key} className={`${styles.tab} ${section === key ? styles.active : ''}`} onClick={() => setSection(key)}>{label}</button>)}</nav>
     {section === 'users' ? <UsersList /> : section === 'loans' ? <Loans /> : section === 'policies' ? <Policies /> : <Resources />}
   </div>
 }

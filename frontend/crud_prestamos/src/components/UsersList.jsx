@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiError } from '../api/client'
 import { createUser, deleteUser, getUsers, updateUser } from '../api/users'
+import styles from './UsersList.module.css'
+import ui from '../styles/components.module.css'
 
 const initialForm = {
   email: '', password: '', cui: '', first_name: '', last_name: '',
@@ -93,15 +95,15 @@ export default function UsersList() {
   )
 
   return (
-    <main className="page">
-      <div className="page-heading">
-        <div><span className="eyebrow">CUENTAS DEL SISTEMA</span><h2>Usuarios</h2><p>Registra, modifica y elimina cuentas.</p></div>
-        <span className="badge">{users.length} usuarios</span>
+    <main className={ui.page}>
+      <div className={ui.pageHeading}>
+        <div><span className={ui.eyebrow}>CUENTAS DEL SISTEMA</span><h2>Usuarios</h2><p>Registra, modifica y elimina cuentas.</p></div>
+        <span className={ui.badge}>{users.length} usuarios</span>
       </div>
 
-      <form className="panel" onSubmit={handleSubmit}>
+      <form className={ui.panel} onSubmit={handleSubmit}>
         <h3>{editingId !== null ? 'Modificar usuario' : 'Crear usuario'}</h3>
-        <div className="form-grid">
+        <div className={ui.formGrid}>
           <label>Correo electrónico<input name="email" type="email" required value={form.email} onChange={updateField} /></label>
           {editingId === null && <label>Contraseña<input name="password" type="password" required minLength="8" value={form.password} onChange={updateField} /></label>}
           <label>CUI (8 dígitos)<input name="cui" required pattern="[0-9]{8}" maxLength="8" value={form.cui} onChange={updateField} /></label>
@@ -115,24 +117,24 @@ export default function UsersList() {
             <option value="ACTIVO">Activo</option><option value="INACTIVO">Inactivo</option><option value="SUSPENDIDO">Suspendido</option>
           </select></label>
         </div>
-        <div className="actions">
-          <button className="button" disabled={saving}>{saving ? 'Guardando…' : editingId !== null ? 'Guardar cambios' : 'Crear usuario'}</button>
-          {editingId !== null && <button type="button" className="button secondary" onClick={resetForm}>Cancelar</button>}
+        <div className={ui.actions}>
+          <button className={ui.button} disabled={saving}>{saving ? 'Guardando…' : editingId !== null ? 'Guardar cambios' : 'Crear usuario'}</button>
+          {editingId !== null && <button type="button" className={`${ui.button} ${ui.secondary}`} onClick={resetForm}>Cancelar</button>}
         </div>
-        {error && <p className="notice error" role="alert">{error}</p>}
+        {error && <p className={`${ui.notice} ${ui.error}`} role="alert">{error}</p>}
       </form>
 
-      <section className="panel table-panel">
-        <div className="panel-heading"><div><h3>Usuarios registrados</h3><p>Correo, CUI, nombre, tipo y estado.</p></div><button type="button" className="button secondary" onClick={loadUsers}>Actualizar</button></div>
-        <div className="toolbar"><input type="search" placeholder="Buscar por nombre, correo o CUI" value={search} onChange={event => setSearch(event.target.value)} /></div>
-        {loading ? <p className="empty" role="status">Cargando usuarios…</p> : visibleUsers.length ? (
-          <div className="table-wrap"><table><thead><tr><th>Nombre</th><th>Correo</th><th>CUI</th><th>Tipo</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <section className={`${ui.panel} ${ui.tablePanel}`}>
+        <div className={ui.panelHeading}><div><h3>Usuarios registrados</h3><p>Correo, CUI, nombre, tipo y estado.</p></div><button type="button" className={`${ui.button} ${ui.secondary}`} onClick={loadUsers}>Actualizar</button></div>
+        <div className={styles.toolbar}><input type="search" placeholder="Buscar por nombre, correo o CUI" value={search} onChange={event => setSearch(event.target.value)} /></div>
+        {loading ? <p className={ui.empty} role="status">Cargando usuarios…</p> : visibleUsers.length ? (
+          <div className={ui.tableWrap}><table><thead><tr><th>Nombre</th><th>Correo</th><th>CUI</th><th>Tipo</th><th>Estado</th><th>Acciones</th></tr></thead>
             <tbody>{visibleUsers.map(user => <tr key={user.id}>
               <td>{`${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Sin nombre'}</td><td>{user.email}</td><td>{user.cui}</td><td>{user.tipo_usuario}</td><td>{user.status}</td>
-              <td className="nowrap"><button type="button" className="link" onClick={() => startEdit(user)}>Modificar</button><button type="button" className="link danger" onClick={() => removeUser(user)}>Eliminar</button></td>
+              <td className={ui.nowrap}><button type="button" className={ui.link} onClick={() => startEdit(user)}>Modificar</button><button type="button" className={`${ui.link} ${ui.danger}`} onClick={() => removeUser(user)}>Eliminar</button></td>
             </tr>)}</tbody>
           </table></div>
-        ) : <p className="empty">{error ? 'No se pudo cargar la lista.' : users.length ? 'No hay coincidencias.' : 'No hay usuarios registrados.'}</p>}
+        ) : <p className={ui.empty}>{error ? 'No se pudo cargar la lista.' : users.length ? 'No hay coincidencias.' : 'No hay usuarios registrados.'}</p>}
       </section>
     </main>
   )

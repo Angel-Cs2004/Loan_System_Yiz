@@ -1,0 +1,56 @@
+.appShell {
+  min-height: 100vh;
+}
+
+.topbar {
+  min-height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-9) max(6vw, var(--space-13));
+  background: var(--color-white);
+  border-bottom: 1px solid var(--color-navigation-border);
+}
+
+.topbar h1 {
+  margin: var(--space-1) 0;
+  color: var(--color-heading);
+  font: 800 21px var(--font-heading);
+}
+
+.tabs {
+  display: flex;
+  gap: var(--space-14);
+  padding: 0 max(6vw, var(--space-13));
+  background: var(--color-white);
+  border-bottom: 1px solid var(--color-navigation-border);
+}
+
+.tab {
+  padding: var(--space-9) 2px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--color-navigation-text);
+  font-weight: 600;
+}
+
+.active {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+@media (max-width: 650px) {
+  .topbar {
+    padding: var(--space-9) var(--space-10);
+  }
+
+  .topbar h1 {
+    font-size: 17px;
+  }
+
+  .tabs {
+    gap: var(--space-12);
+    padding: 0 var(--space-10);
+  }
+}

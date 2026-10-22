@@ -1,0 +1,20 @@
+.toolbar {
+  padding: var(--space-7) var(--space-10);
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.toolbar input {
+  width: 100%;
+  max-width: 380px;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-control-border);
+  border-radius: 8px;
+  background: white;
+  color: var(--color-control-text);
+  outline: none;
+}
+
+.toolbar input:focus {
+  border-color: var(--color-focus);
+  box-shadow: 0 0 0 3px var(--color-focus-shadow);
+}
