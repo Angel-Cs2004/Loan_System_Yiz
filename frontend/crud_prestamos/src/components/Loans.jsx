@@ -9,14 +9,24 @@ export default function Loans() {
   const [error, setError] = useState('')
   const load = useCallback(async () => {
     setError('')
-    try { const { data } = await getLoans(state); setItems(data) }
-    catch (err) { setError(apiError(err)) }
+    try {
+      const { data } = await getLoans(state)
+      setItems(data)
+    } catch (err) {
+      setError(apiError(err))
+    }
   }, [state])
   useEffect(() => { load() }, [load])
   const markReturned = async loan => {
-    if (!window.confirm(`¿Registrar devolución de ${loan.ficha_recurso_nombre}?`)) return
-    try { await returnLoan(loan.id); await load() }
-    catch (err) { setError(apiError(err)) }
+    if (!window.confirm(`¿Registrar devolución de ${loan.ficha_recurso_nombre}?`)) {
+      return
+    }
+    try {
+      await returnLoan(loan.id)
+      await load()
+    } catch (err) {
+      setError(apiError(err))
+    }
   }
   return <main className={ui.page}>
     <div className={ui.pageHeading}><div><span className={ui.eyebrow}>CIRCULACIÓN</span><h2>Préstamos</h2><p>Consulta las reservas y registra devoluciones.</p></div><span className={ui.badge}>{items.length} registros</span></div>
