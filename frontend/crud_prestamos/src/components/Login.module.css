@@ -119,17 +119,10 @@
   margin-bottom: 34px;
 }
 
-
-
-
-
-
-
 .login-heading {
   margin-bottom: 30px;
   text-align: center;
 }
-
 
 
 .login-heading h1 {
@@ -319,9 +312,6 @@
   flex-shrink: 0;
   color: var(--color-login-accent);
 }
-
-
-
 
 
 @keyframes login-spin {

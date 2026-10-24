@@ -29,7 +29,10 @@ export default function Policies() {
     setBusy(true)
     setError('')
     try {
-      await updatePolicy(editing, { ...form, dias_maximo_prestamo: Number(form.dias_maximo_prestamo) })
+      await updatePolicy(editing, {
+        ...form,
+        dias_maximo_prestamo: Number(form.dias_maximo_prestamo),
+      })
       setEditing(null)
       await load()
     } catch (err) {
@@ -90,9 +93,7 @@ export default function Policies() {
         <form className={ui.panel} onSubmit={save}>
           <h3>Editar política</h3>
           <div className={ui.formGrid}>
-            <label>
-              Tipo de usuario
-              <select
+            <label>Tipo de usuario<select
                 required
                 value={form.tipo_usuario}
                 onChange={event => setForm({ ...form, tipo_usuario: event.target.value })}
@@ -103,9 +104,7 @@ export default function Policies() {
                 <option value="ADMINISTRATOR">Administrador</option>
               </select>
             </label>
-            <label>
-              Días máximos
-              <input
+            <label>Días máximos<input
                 required
                 min="1"
                 type="number"
@@ -118,7 +117,7 @@ export default function Policies() {
             </label>
           </div>
           <div className={ui.actions}>
-            <button className={ui.button} disabled={busy}>
+            <button type="submit" className={ui.button} disabled={busy}>
               {busy ? 'Guardando…' : 'Guardar cambios'}
             </button>
             <button
