@@ -1,262 +1,160 @@
-# Sistema de Préstamos
+# Loan System — Frontend
 
-Sistema de préstamos para una institución educativa. El backend está construido con **Django REST Framework** y **PostgreSQL**, con autenticación **JWT** y documentación **Swagger**. Gestiona usuarios por rol, recursos, reservas y devoluciones. El frontend está previsto en **React**.
-
-Proyecto de la asignatura *Trabajo Interdisciplinario II* — Escuela Profesional de Ciencia de la Computación, Universidad Nacional de San Agustín de Arequipa (UNSA), 2026.
-
-## Tabla de contenido
-
-- [Funcionalidades](#funcionalidades)
-- [Tecnologías](#tecnologías)
-- [Roles de usuario](#roles-de-usuario)
-- [Instalación](#instalación)
-- [Endpoints](#endpoints)
-- [Reglas de negocio](#reglas-de-negocio)
-- [Estructura del proyecto](#estructura-del-proyecto)
-- [Estado del proyecto](#estado-del-proyecto)
-- [Equipo](#equipo)
+Interfaz web para el sistema de préstamos de una biblioteca universitaria. Está construida con React y Vite, y consume la API REST del backend Django REST Framework.
 
 ## Funcionalidades
 
-- Registro público de usuarios.
-- Inicio de sesión con JWT, renovación de token y cierre de sesión con lista negra de tokens.
-- Perfil propio: cada usuario consulta y edita sus datos básicos.
-- Administración de usuarios: el administrador lista, crea, modifica, reclasifica y elimina usuarios.
-- Catálogo de recursos: el administrador crea, edita y elimina recursos; los demás usuarios ven solo los disponibles.
-- Reservas: un usuario reserva un recurso disponible y el sistema calcula la fecha límite de devolución según su tipo de usuario.
-- Consulta de reservas: cada usuario ve las suyas; el administrador ve todas y puede filtrarlas por estado.
-- Devoluciones: el administrador registra la devolución y el recurso vuelve a estar disponible.
+- Inicio y cierre de sesión con autenticación JWT.
+- Catálogo de recursos disponibles con búsqueda.
+- Administración de usuarios.
+- Administración de categorías, fichas de recursos y ejemplares físicos.
+- Consulta y edición de políticas de préstamo.
+- Consulta de préstamos, filtro por estado y registro de devoluciones.
+
+Las secciones de administración requieren una cuenta con rol de administrador en el backend.
+
+## Funciones disponibles por interfaz
+
+| Sección | Funciones |
+|---|---|
+| Inicio de sesión | Iniciar sesión con correo y contraseña, mostrar u ocultar la contraseña y cerrar sesión. Al volver a abrir la página, comprueba la sesión guardada con el backend. |
+| Recursos | Crear, editar y eliminar categorías y fichas de recursos; consultar el estado y las copias disponibles; crear, editar y eliminar ejemplares físicos asociados a una ficha. |
+| Catálogo | Consultar recursos activos con ejemplares disponibles, buscar por nombre y ver categoría, descripción y cantidad disponible. |
+| Préstamos | Consultar el historial, filtrar por estado y registrar la devolución de un préstamo activo. |
+| Políticas | Consultar las políticas de préstamo y editar los días máximos permitidos. |
+| Usuarios | Crear, editar y eliminar usuarios; buscar por nombre, correo o CUI; cambiar tipo de usuario y estado. |
+
+Las operaciones que modifican datos se envían al backend y están sujetas a sus permisos y validaciones.
 
 ## Tecnologías
 
-| Componente | Tecnología |
-|---|---|
-| Lenguaje | Python 3 |
-| Framework | Django 6.1 + Django REST Framework |
-| Base de datos | PostgreSQL |
-| Autenticación | Simple JWT |
-| Documentación | drf-spectacular (Swagger / ReDoc) |
-| Hash de contraseñas | Argon2 |
-| Configuración | python-decouple (variables de entorno) |
+- React
+- Vite
+- JavaScript
+- CSS Modules
+- Django REST Framework como API
+- PostgreSQL como base de datos del backend
 
-## Roles de usuario
+## Estructura
 
-| Rol | Valor en el sistema | Permisos |
-|---|---|---|
-| Estudiante | `STUDENT` | Ver recursos disponibles, reservar, ver sus reservas, editar su perfil |
-| Docente | `TEACHER` | Los mismos que el estudiante |
-| Personal administrativo | `ADMINISTRATIVE_STAFF` | Los mismos que el estudiante |
-| Administrador | `ADMINISTRATOR` | Todo lo anterior, más la gestión de usuarios, recursos y reservas |
+```text
+frontend/
+|-- package.json                  # Comandos de conveniencia para la aplicación
+`-- crud_prestamos/
+    |-- index.html                # Documento HTML de entrada
+    |-- package.json              # Dependencias y scripts de la aplicación
+    |-- vite.config.js            # Vite y proxy de desarrollo hacia Django
+    `-- src/
+        |-- main.jsx               # Punto de entrada de React
+        |-- App.jsx                # Sesión, navegación y panel principal
+        |-- App.module.css         # Estilos del panel
+        |-- api/
+        |   |-- client.js          # Cliente HTTP, token JWT y errores de API
+        |   |-- auth.js            # Inicio/cierre de sesión y perfil
+        |   |-- users.js           # Llamadas de administración de usuarios
+        |   `-- loans.js           # Recursos, ejemplares, categorías, políticas y préstamos
+        |-- components/
+        |   |-- Login.jsx          # Formulario de inicio de sesión
+        |   |-- Login.module.css
+        |   |-- UsersList.jsx      # Administración y búsqueda de usuarios
+        |   |-- UsersList.module.css
+        |   |-- Resources.jsx      # Categorías, fichas y ejemplares físicos
+        |   |-- Resources.module.css
+        |   |-- Policies.jsx       # Consulta y edición de políticas
+        |   |-- Loans.jsx          # Historial, filtros y devoluciones
+        |   |-- catalog/
+        |   |   |-- ResourceCatalog.jsx      # Búsqueda y listado del catálogo
+        |   |   |-- ResourceCatalog.module.css
+        |   |   |-- ResourceCard.jsx         # Tarjeta de un recurso
+        |   |   `-- ResourceCard.module.css
+        `-- styles/
+            |-- variables.css     # Variables visuales
+            |-- base.css          # Reglas base
+            |-- index.css          # Importación de estilos globales
+            `-- components.module.css # Clases reutilizables de interfaz
+```
 
-Todo usuario que se registra desde el endpoint público entra como `STUDENT`. Solo un administrador puede cambiarle el tipo.
+La carpeta `frontend/` contiene los comandos de conveniencia; la aplicación React y sus dependencias están en `frontend/crud_prestamos/`. Cada vista usa los módulos de `src/api/` para comunicarse con el backend y sus estilos locales cuando tiene un CSS Module propio.
 
-## Instalación
+## Requisitos
 
-### Requisitos
+- Node.js y npm
+- Python y PostgreSQL para ejecutar el backend
 
-- Python 3.12 o superior
-- PostgreSQL
+## Ejecutar el proyecto en desarrollo
 
-### Pasos
+El frontend necesita que el backend y su base de datos estén funcionando.
 
-1. Clonar el repositorio y entrar a la carpeta:
+### 1. Preparar y ejecutar el backend
 
-   ```bash
-   git clone <url-del-repositorio>
-   cd <carpeta-del-proyecto>
-   ```
+Desde la raíz del repositorio, configura las variables de entorno que Django requiere: `SECRET_KEY`, `DB_NAME`, `DB_USER` y `DB_PASSWORD`. También puedes configurar `DEBUG`, `ALLOWED_HOSTS`, `DB_HOST` y `DB_PORT`.
 
-2. Crear y activar el entorno virtual:
-
-   ```bash
-   python -m venv env
-   source env/bin/activate
-   ```
-
-3. Instalar las dependencias:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Crear la base de datos y el usuario en PostgreSQL (ajusta los nombres si prefieres otros):
-
-   ```sql
-   CREATE DATABASE prestamos_db;
-   CREATE USER prestamos_user WITH PASSWORD 'tu_contraseña';
-   GRANT ALL PRIVILEGES ON DATABASE prestamos_db TO prestamos_user;
-   ```
-
-   En PostgreSQL 15 o superior también hace falta dar permisos sobre el esquema público:
-
-   ```sql
-   \c prestamos_db
-   GRANT ALL ON SCHEMA public TO prestamos_user;
-   ```
-
-5. Crear el archivo de variables de entorno a partir de la plantilla y completarlo:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-   | Variable | Descripción |
-   |---|---|
-   | `SECRET_KEY` | Clave secreta de Django. Genera una propia. |
-   | `DEBUG` | `True` en desarrollo. Si no se define, queda en `False`. |
-   | `ALLOWED_HOSTS` | Hosts permitidos, separados por comas. |
-   | `DB_NAME` | Nombre de la base de datos. |
-   | `DB_USER` | Usuario de PostgreSQL. |
-   | `DB_PASSWORD` | Contraseña del usuario. |
-   | `DB_HOST` | Host de la base de datos (`localhost`). |
-   | `DB_PORT` | Puerto (`5432`). |
-
-   Para generar un `SECRET_KEY`:
-
-   ```bash
-   python -c "from django.core.management.utils import get_random_secret_key as g; print(g())"
-   ```
-
-6. Aplicar las migraciones:
-
-   ```bash
-   python manage.py migrate
-   ```
-
-7. Iniciar el servidor:
-
-   ```bash
-   python manage.py runserver
-   ```
-
-### Crear el primer administrador
-
-El registro público siempre crea estudiantes, así que el primer administrador se crea por consola:
+Después instala las dependencias y aplica las migraciones:
 
 ```bash
-python manage.py createsuperuser
-python manage.py shell
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
 ```
 
-```python
-from users.models import Usuario, TipoUsuario
-u = Usuario.objects.get(email='tu_correo@ejemplo.com')
-u.tipo_usuario = TipoUsuario.ADMINISTRATOR
-u.save()
+Django estará disponible en `http://127.0.0.1:8000`.
+
+### 2. Preparar y ejecutar el frontend
+
+En otra terminal, desde la carpeta del frontend:
+
+```bash
+cd frontend/crud_prestamos
+npm install
+npm run dev
 ```
 
-Los permisos de administrador del sistema dependen del campo `tipo_usuario`, no de `is_superuser`.
+Vite mostrará la dirección local de la aplicación, normalmente `http://localhost:5173`.
 
-## Documentación de la API
+Como alternativa, después de instalar las dependencias en `crud_prestamos`, puedes ejecutar los comandos del paquete contenedor desde la carpeta `frontend/`:
 
-Con el servidor en marcha:
+```bash
+npm run dev
+npm run build
+npm run lint
+```
 
-- Swagger UI: <http://127.0.0.1:8000/api/docs/>
-- ReDoc: <http://127.0.0.1:8000/api/redoc/>
-- Esquema OpenAPI: <http://127.0.0.1:8000/api/schema/>
+## Conexión entre frontend y backend
 
-Para probar los endpoints protegidos en Swagger: haz `POST /login/`, copia el valor de `access`, pulsa **Authorize** y pega solo el token (sin la palabra `Bearer`). El token de acceso dura 15 minutos.
+El cliente HTTP está en `frontend/crud_prestamos/src/api/client.js`. Envía solicitudes a rutas como `/login/`, `/users/...` y `/prestamos/...`; el backend Django expone esas rutas desde `prestamos_sistema/urls.py` y las resuelven las aplicaciones `users` y `prestamos`.
 
-## Endpoints
+El flujo de una solicitud es: **componente React → funciones de `src/api/` → cliente HTTP (`client.js`) → Vite en desarrollo → rutas y vistas de Django REST Framework → base de datos**. La respuesta JSON regresa por el mismo camino y actualiza la interfaz.
 
-### Autenticación
+### Ejemplo: cargar la lista de usuarios
 
-| Método | Ruta | Acceso | Descripción |
-|---|---|---|---|
-| POST | `/users/registro/` | Público | Registro de usuario (entra como estudiante) |
-| POST | `/login/` | Público | Obtiene los tokens `access` y `refresh` |
-| POST | `/login/refresh/` | Público | Renueva el token de acceso |
-| POST | `/users/logout/` | Autenticado | Invalida el token `refresh` |
+1. Al abrir la sección **Usuarios**, `UsersList.jsx` llama a `getUsers()` desde `src/api/users.js`.
+2. `getUsers()` pide `GET /users/admin/usuarios/` mediante `client.js`, que agrega el token JWT guardado en el navegador.
+3. En desarrollo, Vite reenvía la solicitud a Django en `http://127.0.0.1:8000`.
+4. Django resuelve la ruta en `users/urls.py`. `UsuarioAdminListCreateView` valida que la cuenta tenga permisos de administrador y consulta los usuarios.
+5. Django devuelve los datos en JSON. `UsersList.jsx` los guarda en su estado y React muestra las filas en la tabla.
 
-### Perfil
+Si la API devuelve un error, por ejemplo por falta de permisos o porque el servidor no está disponible, el frontend muestra el mensaje recibido o uno indicando que no pudo conectarse.
 
-| Método | Ruta | Acceso | Descripción |
-|---|---|---|---|
-| GET, PATCH | `/users/perfil/` | Autenticado | Ver y editar el perfil propio |
+En desarrollo, Vite actúa como intermediario: las reglas de `frontend/crud_prestamos/vite.config.js` reenvían las rutas `/login`, `/users` y `/prestamos` a `http://127.0.0.1:8000`. El navegador se comunica con Vite y Vite con Django, así que ambos servidores deben estar activos para que la aplicación pueda consultar o modificar datos.
 
-### Administración de usuarios
+El backend también tiene habilitado `CorsMiddleware` en `prestamos_sistema/settings.py`. La lista `CORS_ALLOWED_ORIGINS` permite los orígenes locales `http://localhost:5173` y `http://127.0.0.1:5173`. CORS aplica cuando el navegador llama directamente a una API en otro origen; con el proxy de Vite, el navegador usa el origen del frontend y el proxy realiza el reenvío. En un despliegue donde frontend y backend tengan dominios distintos, el dominio del frontend debe estar permitido en `CORS_ALLOWED_ORIGINS`. `ALLOWED_HOSTS` cumple otra función: autoriza el nombre de host con el que se accede al servidor Django.
 
-| Método | Ruta | Acceso | Descripción |
-|---|---|---|---|
-| GET, POST | `/users/admin/usuarios/` | Administrador | Listar y crear usuarios |
-| GET, PUT, PATCH, DELETE | `/users/admin/usuarios/{id}/` | Administrador | Ver, editar, reclasificar y eliminar un usuario |
+El cliente toma la dirección base de `VITE_API_URL`; si no se define, usa el origen actual. Para que en producción llegue al backend, el valor debe ser el origen de la API, por ejemplo `https://api.ejemplo.edu`, sin añadir `/users` ni `/prestamos`. Esa dirección debe ser accesible desde el navegador y estar coordinada con CORS en Django.
 
-### Recursos
+Al iniciar sesión, el frontend envía las credenciales a `POST /login/` y guarda los tokens JWT en `localStorage`. Las solicitudes autenticadas envían el token de acceso como `Authorization: Bearer <token>`. Al cerrar sesión, solicita invalidar el token de renovación y elimina ambos tokens del navegador.
 
-| Método | Ruta | Acceso | Descripción |
-|---|---|---|---|
-| GET | `/prestamos/recursos/` | Autenticado | Listar los recursos disponibles |
-| GET, POST | `/prestamos/admin/recursos/` | Administrador | Listar todos los recursos y crear uno |
-| GET, PUT, PATCH, DELETE | `/prestamos/admin/recursos/{id}/` | Administrador | Ver, editar y eliminar un recurso |
+## Rutas principales de la API
 
-### Reservas
-
-| Método | Ruta | Acceso | Descripción |
-|---|---|---|---|
-| POST | `/prestamos/reservar/` | Autenticado | Reservar un recurso |
-| GET | `/prestamos/mis-reservas/` | Autenticado | Ver las reservas propias |
-| GET | `/prestamos/admin/reservas/` | Administrador | Listar todas las reservas (filtro opcional `?estado=`) |
-| GET, DELETE | `/prestamos/admin/reservas/{id}/` | Administrador | Ver y eliminar una reserva |
-| POST | `/prestamos/admin/reservas/{id}/devolver/` | Administrador | Registrar la devolución |
-
-## Reglas de negocio
-
-**Plazo de préstamo** según el tipo de usuario (valores actuales, definidos en `prestamos/services.py`):
-
-| Tipo de usuario | Días |
+| Uso | Ruta |
 |---|---|
-| Docente | 7 |
-| Estudiante | 6 |
-| Personal administrativo | 10 |
-| Administrador | 2 |
+| Inicio de sesión | `POST /login/` |
+| Perfil y comprobación de sesión | `GET /users/perfil/` |
+| Administración de usuarios | `/users/admin/usuarios/` |
+| Catálogo de recursos | `GET /prestamos/recursos/` |
+| Administración de fichas | `/prestamos/admin/recursos/` |
+| Ejemplares de una ficha | `/prestamos/admin/recursos/{id}/ejemplares/` |
+| Categorías | `/prestamos/admin/categorias/` |
+| Políticas de préstamo | `/prestamos/admin/politicas/` |
+| Préstamos y devoluciones | `/prestamos/admin/reservas/` |
 
-**Estados de una reserva:**
-
-| Estado | Significado |
-|---|---|
-| `ACTIVO` | El recurso está prestado actualmente |
-| `DEVUELTO` | El recurso fue devuelto |
-| `VENCIDO` | Se superó la fecha límite sin devolverlo |
-
-**Disponibilidad de recursos:** al reservar, el recurso pasa a no disponible y deja de aparecer en el listado; al registrar la devolución vuelve a estar disponible. Un recurso no disponible no se puede reservar.
-
-## Estructura del proyecto
-
-```
-.
-├── manage.py
-├── requirements.txt
-├── .env.example
-├── prestamos_sistema/     Configuración del proyecto (settings, urls)
-├── users/                 Usuarios, autenticación, perfil y administración de usuarios
-│   ├── models.py          Modelo Usuario, tipos y estados
-│   ├── permissions.py     Permiso EsAdministrador
-│   ├── serializers.py
-│   ├── views.py
-│   └── urls.py
-└── prestamos/             Recursos, reservas y reglas de plazo
-    ├── models.py          Recurso, Prestamo, EstadoPrestamo
-    ├── services.py        Cálculo de la fecha límite
-    ├── serializers.py
-    ├── views.py
-    └── urls.py
-```
-
-## Estado del proyecto
-
-**Implementado:** autenticación JWT, perfil, administración de usuarios, catálogo de recursos, reservas, devoluciones y documentación Swagger.
-
-**Pendiente:**
-
-- Separar el recurso en ficha de catálogo y ejemplar físico, como en el modelo de dominio.
-- Períodos de préstamo configurables por el administrador (hoy están fijos en el código).
-- Marcado automático de préstamos vencidos.
-- Pruebas automatizadas.
-- Interfaz web en React.
-
-## Equipo
-
-- Calcina Chuquipalla, Karina Paola
-- Huayhua Perez, Lizzy Arlette
-- Quispe Suarez, Angelo Josue
-- Condori Pallardel, Emilio Alejandro
+La documentación interactiva del backend está disponible en `http://127.0.0.1:8000/api/docs/` cuando Django está en ejecución.
