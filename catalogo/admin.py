@@ -25,5 +25,5 @@ class FichaRecursoAdmin(admin.ModelAdmin):
 @admin.register(EjemplarFisico)
 class EjemplarFisicoAdmin(admin.ModelAdmin):
     list_display = ['codigo_inventario', 'ficha_recurso', 'estado', 'condicion']
-    list_filter = ['estado']
+    list_filter = ['estado', 'condicion']
     search_fields = ['codigo_inventario', 'ficha_recurso__nombre']
