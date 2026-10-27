@@ -4,11 +4,15 @@ from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.exceptions import ValidationError
+from django.db.models import Q
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import MiTokenObtainPairSerializer, LogoutSerializer, PerfilSerializer, UsuarioAdminSerializer
 from .permissions import EsAdministrador
-from .models import Usuario
+from .models import Usuario, EstadoUsuario
+from prestamos.models import EstadoPrestamo
 
 from drf_spectacular.utils import extend_schema
 
@@ -18,9 +22,12 @@ class LogoutView(APIView):
 
     @extend_schema(request=LogoutSerializer)
     def post(self, request):
-        refresh_token = request.data.get('refresh')
-        token = RefreshToken(refresh_token)
-        token.blacklist()
+        serializer = LogoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            RefreshToken(serializer.validated_data['refresh']).blacklist()
+        except TokenError:
+            raise ValidationError({'refresh': 'Token invalido o expirado.'})
         return Response(status=205)
 
 class RegistroUsuarioView(generics.CreateAPIView):
@@ -34,18 +41,35 @@ class MiTokenObtainPairView(TokenObtainPairView):
 class PerfilView(generics.RetrieveUpdateAPIView):
     serializer_class = PerfilSerializer
     permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'patch']
 
     def get_object(self):
         return self.request.user
 
 
 class UsuarioAdminListCreateView(generics.ListCreateAPIView):
-    queryset = Usuario.objects.all()
     serializer_class = UsuarioAdminSerializer
     permission_classes = [EsAdministrador]
 
+    def get_queryset(self):
+        queryset = Usuario.objects.all()
+        q = self.request.query_params.get('q')
+        if q:
+            queryset = queryset.filter(Q(dni=q) | Q(cui=q))
+        return queryset
 
-class UsuarioAdminDetailView(generics.RetrieveUpdateDestroyAPIView):
+
+class UsuarioAdminDetailView(generics.UpdateAPIView, generics.DestroyAPIView):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioAdminSerializer
     permission_classes = [EsAdministrador]
+    http_method_names = ['patch', 'delete']
+
+    def perform_destroy(self, usuario):
+        if usuario.pk == self.request.user.pk:
+            raise ValidationError('No puedes darte de baja a ti mismo.')
+        pendientes = usuario.prestamos.filter(estado__in=[EstadoPrestamo.ACTIVO, EstadoPrestamo.VENCIDO])
+        if pendientes.exists():
+            raise ValidationError('El usuario tiene prestamos pendientes.')
+        usuario.status = EstadoUsuario.INACTIVO
+        usuario.save(update_fields=['status'])
