@@ -31,7 +31,6 @@ class LogoutSerializer(serializers.Serializer):
 
 
 class PerfilSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = Usuario
         fields = ['email', 'first_name', 'last_name', 'cui', 'tipo_usuario', 'status']
@@ -39,7 +38,6 @@ class PerfilSerializer(serializers.ModelSerializer):
 
 
 class UsuarioAdminSerializer(serializers.ModelSerializer):
-
     password = serializers.CharField(write_only = True, required = False)
     class Meta: 
         model = Usuario

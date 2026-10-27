@@ -9,6 +9,3 @@ class UsuarioAdmin(UserAdmin):
     search_fields = ['email', 'cui']
 
 admin.site.register(Usuario, UsuarioAdmin)
-
-# RECORDAR : PERSONALIZAMOS "UserAdmin" YA QUE EL ORIGINAL 
-#RESIVIA COMO LOGER A USERNAME

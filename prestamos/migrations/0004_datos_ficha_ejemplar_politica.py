@@ -43,7 +43,6 @@ def revertir_datos(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('prestamos', '0003_categoria_ejemplarfisico_politicaprestamo_and_more'),
     ]

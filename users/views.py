@@ -13,7 +13,6 @@ from .models import Usuario
 from drf_spectacular.utils import extend_schema
 
 
-#<================LOGUT==========================>
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -24,12 +23,10 @@ class LogoutView(APIView):
         token.blacklist()
         return Response(status=205)
 
-#<================REGISTER ======================>
 class RegistroUsuarioView(generics.CreateAPIView):
     serializer_class = RegistroUsuarioSerializer
 
 
-## <==============TOKEN==========================>
 class MiTokenObtainPairView(TokenObtainPairView):
     serializer_class = MiTokenObtainPairSerializer
 

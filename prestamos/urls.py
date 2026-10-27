@@ -17,8 +17,6 @@ from .views import (
     PrestamoListView,
 )
 
-# OJO PA MI WAA: aqui el id es UUID, asi que el conversor es <uuid:pk>, no <int:pk>
-# (en users si era int porque Usuario usa id entero).
 urlpatterns = [
     path('recursos/', FichaRecursoListView.as_view()),
     path('admin/recursos/', FichaRecursoAdminListCreateView.as_view()),

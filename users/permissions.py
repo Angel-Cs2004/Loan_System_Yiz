@@ -8,4 +8,3 @@ class EsAdministrador(BasePermission):
         if(request.user and request.user.is_authenticated and request.user.tipo_usuario == TipoUsuario.ADMINISTRATOR):
            return True
         return False
-
