@@ -10,7 +10,9 @@ from rest_framework.views import APIView
 
 from users.permissions import EsAdministrador
 
-from .models import Categoria, EjemplarFisico, EstadoEjemplar, EstadoPrestamo, FichaRecurso, PoliticaPrestamo, Prestamo
+from catalogo.models import Categoria, EjemplarFisico, EstadoEjemplar, FichaRecurso
+
+from .models import EstadoPrestamo, PoliticaPrestamo, Prestamo
 from .serializers import (
     CategoriaSerializer,
     EjemplarFisicoSerializer,

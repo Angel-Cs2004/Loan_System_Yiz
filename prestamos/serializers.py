@@ -1,6 +1,8 @@
 from rest_framework import serializers
 
-from .models import Categoria, EjemplarFisico, FichaRecurso, PoliticaPrestamo, Prestamo
+from catalogo.models import Categoria, EjemplarFisico, FichaRecurso
+
+from .models import PoliticaPrestamo, Prestamo
 
 
 class CategoriaSerializer(serializers.ModelSerializer):
