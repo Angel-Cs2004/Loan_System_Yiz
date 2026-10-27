@@ -14,5 +14,6 @@ urlpatterns = [
     path('login/', MiTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('login/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('users/', include('users.urls')),
+    path('catalogo/', include('catalogo.urls')),
     path('prestamos/', include('prestamos.urls')),
 ]
