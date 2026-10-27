@@ -2,39 +2,25 @@ from datetime import date
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema
 from rest_framework import generics
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from catalogo.models import EstadoEjemplar
+from catalogo.services import ejemplares_prestables, estado_tras_devolucion
 from users.permissions import EsAdministrador
-
-from catalogo.models import Categoria, EjemplarFisico, EstadoEjemplar, FichaRecurso
 
 from .models import EstadoPrestamo, PoliticaPrestamo, Prestamo
 from .serializers import (
-    CategoriaSerializer,
-    EjemplarFisicoSerializer,
-    FichaRecursoAdminSerializer,
-    FichaRecursoSerializer,
+    DevolucionSerializer,
     PoliticaPrestamoSerializer,
     PrestamoCreateSerializer,
     PrestamoSerializer,
 )
 from .services import calcular_fecha_limite
-
-
-class CategoriaAdminListCreateView(generics.ListCreateAPIView):
-    queryset = Categoria.objects.all()
-    serializer_class = CategoriaSerializer
-    permission_classes = [EsAdministrador]
-
-
-class CategoriaAdminDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Categoria.objects.all()
-    serializer_class = CategoriaSerializer
-    permission_classes = [EsAdministrador]
 
 
 class PoliticaPrestamoAdminListCreateView(generics.ListCreateAPIView):
@@ -49,55 +35,14 @@ class PoliticaPrestamoAdminDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [EsAdministrador]
 
 
-class FichaRecursoListView(generics.ListAPIView):
-    queryset = FichaRecurso.objects.filter(estado_ficha='ACTIVA')
-    serializer_class = FichaRecursoSerializer
-    permission_classes = [IsAuthenticated]
-
-
-class FichaRecursoAdminListCreateView(generics.ListCreateAPIView):
-    queryset = FichaRecurso.objects.all()
-    serializer_class = FichaRecursoAdminSerializer
-    permission_classes = [EsAdministrador]
-
-
-class FichaRecursoAdminDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = FichaRecurso.objects.all()
-    serializer_class = FichaRecursoAdminSerializer
-    permission_classes = [EsAdministrador]
-
-
-class EjemplarFisicoAdminListCreateView(generics.ListCreateAPIView):
-    serializer_class = EjemplarFisicoSerializer
-    permission_classes = [EsAdministrador]
-
-    def get_queryset(self):
-        return EjemplarFisico.objects.filter(ficha_recurso_id=self.kwargs['ficha_id'])
-
-    def perform_create(self, serializer):
-        ficha = get_object_or_404(FichaRecurso, pk=self.kwargs['ficha_id'])
-        serializer.save(ficha_recurso=ficha)
-
-
-class EjemplarFisicoAdminDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = EjemplarFisico.objects.all()
-    serializer_class = EjemplarFisicoSerializer
-    permission_classes = [EsAdministrador]
-
-
 class PrestamoCreateView(generics.CreateAPIView):
     serializer_class = PrestamoCreateSerializer
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
-        ficha = serializer.validated_data['ficha_recurso']
+        ficha = serializer.validated_data.pop('ficha_recurso')
         with transaction.atomic():
-            ejemplar = (
-                EjemplarFisico.objects
-                .select_for_update()
-                .filter(ficha_recurso=ficha, estado=EstadoEjemplar.DISPONIBLE)
-                .first()
-            )
+            ejemplar = ejemplares_prestables(ficha).select_for_update(of=('self',)).first()
             if ejemplar is None:
                 raise ValidationError('No hay ejemplares disponibles de este recurso.')
 
@@ -136,17 +81,34 @@ class PrestamoDetailView(generics.RetrieveDestroyAPIView):
     serializer_class = PrestamoSerializer
     permission_classes = [EsAdministrador]
 
+    def perform_destroy(self, prestamo):
+        if prestamo.estado != EstadoPrestamo.DEVUELTO:
+            raise ValidationError('Solo se pueden eliminar prestamos devueltos. Registra la devolucion primero.')
+        prestamo.delete()
+
 
 class PrestamoDevolucionView(APIView):
     permission_classes = [EsAdministrador]
 
+    @extend_schema(request=DevolucionSerializer, responses=PrestamoSerializer)
     def post(self, request, pk):
-        prestamo = get_object_or_404(Prestamo, pk=pk)
-        prestamo.estado = EstadoPrestamo.DEVUELTO
-        prestamo.fecha_devolucion = date.today()
-        prestamo.save()
+        serializer = DevolucionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        condicion = serializer.validated_data.get('condicion')
 
-        prestamo.ejemplar_fisico.estado = EstadoEjemplar.DISPONIBLE
-        prestamo.ejemplar_fisico.save(update_fields=['estado'])
+        with transaction.atomic():
+            prestamo = get_object_or_404(Prestamo.objects.select_for_update(), pk=pk)
+            if prestamo.estado == EstadoPrestamo.DEVUELTO:
+                raise ValidationError('Este prestamo ya fue devuelto.')
+
+            prestamo.estado = EstadoPrestamo.DEVUELTO
+            prestamo.fecha_devolucion = date.today()
+            prestamo.save(update_fields=['estado', 'fecha_devolucion'])
+
+            ejemplar = prestamo.ejemplar_fisico
+            if condicion:
+                ejemplar.condicion = condicion
+            ejemplar.estado = estado_tras_devolucion(ejemplar.condicion)
+            ejemplar.save(update_fields=['condicion', 'estado'])
 
         return Response(PrestamoSerializer(prestamo).data)
