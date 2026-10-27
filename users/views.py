@@ -9,7 +9,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import ValidationError
 from django.db.models import Q
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import MiTokenObtainPairSerializer, LogoutSerializer, PerfilSerializer, UsuarioAdminSerializer
+from .serializers import MiTokenObtainPairSerializer, LogoutSerializer, PerfilSerializer, UsuarioAdminSerializer, CambiarPasswordSerializer
+from .services import cerrar_sesiones
 from .permissions import EsAdministrador
 from .models import Usuario, EstadoUsuario
 from prestamos.models import EstadoPrestamo
@@ -45,6 +46,21 @@ class PerfilView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class CambiarPasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(request=CambiarPasswordSerializer)
+    def post(self, request):
+        serializer = CambiarPasswordSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        usuario = request.user
+        usuario.set_password(serializer.validated_data['password_nueva'])
+        usuario.save(update_fields=['password'])
+        cerrar_sesiones(usuario)
+        refresh = RefreshToken.for_user(usuario)
+        return Response({'refresh': str(refresh), 'access': str(refresh.access_token)})
 
 
 class UsuarioAdminListCreateView(generics.ListCreateAPIView):

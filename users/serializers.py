@@ -2,6 +2,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from .models import Usuario, TipoUsuario
+from .services import cerrar_sesiones
 
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -60,6 +61,23 @@ class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField()
 
 
+class CambiarPasswordSerializer(serializers.Serializer):
+    password_actual = serializers.CharField(write_only=True)
+    password_nueva = serializers.CharField(write_only=True)
+
+    def validate_password_actual(self, password):
+        if not self.context['request'].user.check_password(password):
+            raise serializers.ValidationError('La contrasena actual es incorrecta.')
+        return password
+
+    def validate_password_nueva(self, password):
+        try:
+            validate_password(password, self.context['request'].user)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError(list(e.messages))
+        return password
+
+
 class PerfilSerializer(serializers.ModelSerializer):
     class Meta:
         model = Usuario
@@ -108,4 +126,7 @@ class UsuarioAdminSerializer(serializers.ModelSerializer):
         password = validated_data.pop('password', None)
         if password:
             instance.set_password(password)
-        return super().update(instance, validated_data)
+        instance = super().update(instance, validated_data)
+        if password:
+            cerrar_sesiones(instance)
+        return instance
