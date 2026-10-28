@@ -18,14 +18,16 @@ Proyecto de la asignatura *Trabajo Interdisciplinario II* — Escuela Profesiona
 
 ## Funcionalidades
 
-- Registro público de usuarios.
-- Inicio de sesión con JWT, renovación de token y cierre de sesión con lista negra de tokens.
-- Perfil propio: cada usuario consulta y edita sus datos básicos.
-- Administración de usuarios: el administrador lista, crea, modifica, reclasifica y elimina usuarios.
-- Catálogo de recursos: el administrador crea, edita y elimina recursos; los demás usuarios ven solo los disponibles.
-- Reservas: un usuario reserva un recurso disponible y el sistema calcula la fecha límite de devolución según su tipo de usuario.
-- Consulta de reservas: cada usuario ve las suyas; el administrador ve todas y puede filtrarlas por estado.
-- Devoluciones: el administrador registra la devolución y el recurso vuelve a estar disponible.
+- **Cuentas:** registro público de estudiantes, inicio de sesión con JWT, renovación de token, cierre de sesión con lista negra de tokens, cambio de contraseña y recuperación por correo ("olvidé mi contraseña").
+- **Perfil propio:** cada usuario consulta y edita sus datos básicos.
+- **Administración de usuarios:** el administrador lista (con búsqueda y filtros), crea, modifica, reclasifica, suspende y da de baja usuarios. La baja es lógica: se conserva el historial.
+- **Catálogo:** recursos (fichas) agrupados en categorías, cada uno con sus unidades físicas (ejemplares) identificadas por código de inventario. Los usuarios ven solo los recursos activos y cuántas unidades hay libres.
+- **Reservas desde la app:** el usuario reserva un recurso y tiene 24 horas para recogerlo en el mostrador; puede cancelar mientras no lo haya recogido.
+- **Préstamos en el mostrador:** el administrador entrega las reservas o presta directamente a quien viene en persona (por recurso o por código de inventario).
+- **Devoluciones, pérdidas y renovaciones**, registradas por el administrador.
+- **Reglas por tipo de usuario:** días de préstamo y máximo de préstamos a la vez, configurables por el administrador.
+- **Vencimientos automáticos:** un préstamo pasa a vencido al superar su fecha límite; quien tiene algo vencido no puede pedir más.
+- **Historial completo:** nada se borra; se puede consultar por usuario, por recurso, por unidad o por estado.
 
 ## Tecnologías
 
@@ -36,6 +38,7 @@ Proyecto de la asignatura *Trabajo Interdisciplinario II* — Escuela Profesiona
 | Base de datos | PostgreSQL |
 | Autenticación | Simple JWT |
 | Documentación | drf-spectacular (Swagger / ReDoc) |
+| CORS | django-cors-headers |
 | Hash de contraseñas | Argon2 |
 | Configuración | python-decouple (variables de entorno) |
 
@@ -110,6 +113,11 @@ Todo usuario que se registra desde el endpoint público entra como `STUDENT`. So
    | `DB_PASSWORD` | Contraseña del usuario. |
    | `DB_HOST` | Host de la base de datos (`localhost`). |
    | `DB_PORT` | Puerto (`5432`). |
+   | `FRONTEND_URL` | Dirección del frontend; se usa en el enlace del correo de recuperación de contraseña. |
+   | `CORS_ALLOWED_ORIGINS` | Direcciones desde las que el navegador puede llamar a la API, separadas por comas. Si no se define, se usa `FRONTEND_URL`. |
+   | `EMAIL_BACKEND` | `console` (los correos se imprimen en la terminal) o `smtp` (se envían de verdad). |
+   | `DEFAULT_FROM_EMAIL` | Remitente de los correos. |
+   | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | Solo si `EMAIL_BACKEND=smtp`. |
 
    Para generar un `SECRET_KEY`:
 
@@ -135,17 +143,23 @@ El registro público siempre crea estudiantes, así que el primer administrador 
 
 ```bash
 python manage.py createsuperuser
-python manage.py shell
 ```
 
-```python
-from users.models import Usuario, TipoUsuario
-u = Usuario.objects.get(email='tu_correo@ejemplo.com')
-u.tipo_usuario = TipoUsuario.ADMINISTRATOR
-u.save()
+`createsuperuser` ya lo crea con `tipo_usuario = ADMINISTRATOR`. Los permisos de administrador de la API dependen de ese campo, no de `is_superuser`.
+
+### Tareas programadas (opcional)
+
+La API actualiza sola los préstamos vencidos y las reservas no recogidas cada vez que alguien consulta o reserva. Para tener la base al día aunque nadie entre al sistema, se puede programar en cron:
+
+```bash
+5 0 * * * cd /ruta/al/proyecto && env/bin/python manage.py marcar_vencidos
 ```
 
-Los permisos de administrador del sistema dependen del campo `tipo_usuario`, no de `is_superuser`.
+### Pruebas
+
+```bash
+python manage.py test
+```
 
 ## Documentación de la API
 
@@ -159,66 +173,103 @@ Para probar los endpoints protegidos en Swagger: haz `POST /login/`, copia el va
 
 ## Endpoints
 
-### Autenticación
+La referencia completa para el frontend (cuerpos, respuestas y errores de cada endpoint) está en `guia/guia_api_frontend.pdf`. Todas las listas vienen paginadas: `{"count", "next", "previous", "results"}`, 20 por página (`?page=2`, `?page_size=50`, máximo 100).
+
+### Cuentas y perfil
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| POST | `/users/registro/` | Público | Registro de usuario (entra como estudiante) |
+| POST | `/users/registro/` | Público | Registro (entra como estudiante) |
 | POST | `/login/` | Público | Obtiene los tokens `access` y `refresh` |
 | POST | `/login/refresh/` | Público | Renueva el token de acceso |
 | POST | `/users/logout/` | Autenticado | Invalida el token `refresh` |
-
-### Perfil
-
-| Método | Ruta | Acceso | Descripción |
-|---|---|---|---|
+| POST | `/users/password/olvide/` | Público | Envía por correo el enlace para restablecer la contraseña |
+| POST | `/users/password/restablecer/` | Público | Pone la contraseña nueva con el `uid` y `token` del enlace |
 | GET, PATCH | `/users/perfil/` | Autenticado | Ver y editar el perfil propio |
+| POST | `/users/perfil/password/` | Autenticado | Cambiar la contraseña propia |
 
 ### Administración de usuarios
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| GET, POST | `/users/admin/usuarios/` | Administrador | Listar y crear usuarios |
-| GET, PUT, PATCH, DELETE | `/users/admin/usuarios/{id}/` | Administrador | Ver, editar, reclasificar y eliminar un usuario |
+| GET, POST | `/users/admin/usuarios/` | Administrador | Listar (`?q=` DNI, CUI, nombre o email; `?tipo_usuario=`; `?status=`) y crear |
+| GET, PATCH, DELETE | `/users/admin/usuarios/{id}/` | Administrador | Ver, editar, reclasificar, suspender o dar de baja |
 
-### Recursos
-
-| Método | Ruta | Acceso | Descripción |
-|---|---|---|---|
-| GET | `/prestamos/recursos/` | Autenticado | Listar los recursos disponibles |
-| GET, POST | `/prestamos/admin/recursos/` | Administrador | Listar todos los recursos y crear uno |
-| GET, PUT, PATCH, DELETE | `/prestamos/admin/recursos/{id}/` | Administrador | Ver, editar y eliminar un recurso |
-
-### Reservas
+### Catálogo
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| POST | `/prestamos/reservar/` | Autenticado | Reservar un recurso |
-| GET | `/prestamos/mis-reservas/` | Autenticado | Ver las reservas propias |
-| GET | `/prestamos/admin/reservas/` | Administrador | Listar todas las reservas (filtro opcional `?estado=`) |
-| GET, DELETE | `/prestamos/admin/reservas/{id}/` | Administrador | Ver y eliminar una reserva |
+| GET | `/catalogo/recursos/` | Autenticado | Recursos activos (`?q=`, `?categoria=`, `?solo_disponibles=true`) |
+| GET | `/catalogo/recursos/{id}/` | Autenticado | Ver un recurso |
+| GET | `/catalogo/categorias/` | Autenticado | Listar categorías |
+| GET, POST | `/catalogo/admin/recursos/` | Administrador | Todos los recursos con sus ejemplares, y crear uno |
+| GET, PATCH, DELETE | `/catalogo/admin/recursos/{id}/` | Administrador | Ver, editar o eliminar (solo si nunca se prestó) |
+| POST | `/catalogo/admin/recursos/{id}/baja/` | Administrador | Retirar del catálogo (cancela sus reservas sin recoger) |
+| POST | `/catalogo/admin/recursos/{id}/reactivar/` | Administrador | Volver a publicar |
+| GET, POST | `/catalogo/admin/recursos/{id}/ejemplares/` | Administrador | Listar o registrar unidades físicas |
+| GET, PATCH, DELETE | `/catalogo/admin/ejemplares/{id}/` | Administrador | Ver, editar o eliminar una unidad |
+| GET, POST | `/catalogo/admin/categorias/` | Administrador | Listar y crear categorías |
+| GET, PATCH, DELETE | `/catalogo/admin/categorias/{id}/` | Administrador | Ver, editar o eliminar una categoría |
+
+### Préstamos
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| POST | `/prestamos/reservar/` | Autenticado | Reservar un recurso (queda `RESERVADO`, 24 h para recogerlo) |
+| GET | `/prestamos/mis-reservas/` | Autenticado | Ver mis préstamos y reservas |
+| POST | `/prestamos/mis-reservas/{id}/cancelar/` | Autenticado | Cancelar mi reserva antes de recogerla |
+| GET | `/prestamos/admin/reservas/` | Administrador | Historial (`?estado=`, `?usuario=`, `?codigo_inventario=`, `?ficha_recurso=`) |
+| POST | `/prestamos/admin/reservas/` | Administrador | Prestar en el mostrador (queda `ACTIVO`) |
+| GET | `/prestamos/admin/reservas/{id}/` | Administrador | Ver un préstamo |
+| POST | `/prestamos/admin/reservas/{id}/entregar/` | Administrador | Entregar una reserva (pasa a `ACTIVO`) |
+| POST | `/prestamos/admin/reservas/{id}/cancelar/` | Administrador | Cancelar una reserva sin recoger |
 | POST | `/prestamos/admin/reservas/{id}/devolver/` | Administrador | Registrar la devolución |
+| POST | `/prestamos/admin/reservas/{id}/perdido/` | Administrador | Registrar que el recurso se perdió |
+| POST | `/prestamos/admin/reservas/{id}/renovar/` | Administrador | Extender la fecha límite (una vez) |
+| GET | `/prestamos/admin/politicas/` | Administrador | Ver las reglas por tipo de usuario |
+| GET, PATCH | `/prestamos/admin/politicas/{id}/` | Administrador | Cambiar días y máximo de préstamos a la vez |
 
 ## Reglas de negocio
 
-**Plazo de préstamo** según el tipo de usuario (valores actuales, definidos en `prestamos/services.py`):
+**Reglas por tipo de usuario** (valores iniciales; el administrador los cambia en `/prestamos/admin/politicas/`):
 
-| Tipo de usuario | Días |
-|---|---|
-| Docente | 7 |
-| Estudiante | 6 |
-| Personal administrativo | 10 |
-| Administrador | 2 |
+| Tipo de usuario | Días de préstamo | Máximo a la vez |
+|---|---|---|
+| Docente | 7 | 3 |
+| Estudiante | 6 | 3 |
+| Personal administrativo | 10 | 3 |
+| Administrador | 2 | 3 |
 
-**Estados de una reserva:**
+**Ciclo de un préstamo:**
+
+```
+Desde la app:   reservar → RESERVADO ──(admin entrega)──► ACTIVO
+                               └──(cancela o pasan 24 h)──► CANCELADO
+En el mostrador:            prestar ──────────────────────► ACTIVO
+ACTIVO ──(pasa la fecha límite)──► VENCIDO
+ACTIVO o VENCIDO ──► DEVUELTO (devolución) o PERDIDO (pérdida)
+```
 
 | Estado | Significado |
 |---|---|
-| `ACTIVO` | El recurso está prestado actualmente |
-| `DEVUELTO` | El recurso fue devuelto |
-| `VENCIDO` | Se superó la fecha límite sin devolverlo |
+| `RESERVADO` | Reservado desde la app, esperando que lo recojan (máximo 24 h) |
+| `ACTIVO` | El usuario tiene el recurso y está dentro del plazo |
+| `VENCIDO` | Superó la fecha límite sin devolverlo |
+| `DEVUELTO` | Se devolvió (a tiempo o con retraso) |
+| `PERDIDO` | El recurso no volvió; su unidad queda dada de baja |
+| `CANCELADO` | La reserva se anuló antes de recogerla |
 
-**Disponibilidad de recursos:** al reservar, el recurso pasa a no disponible y deja de aparecer en el listado; al registrar la devolución vuelve a estar disponible. Un recurso no disponible no se puede reservar.
+**Reglas al reservar o prestar:**
+
+- Quien tiene un préstamo vencido no puede pedir otro hasta devolverlo.
+- Un solo ejemplar de cada recurso por persona.
+- No se puede superar el máximo de préstamos a la vez de su tipo (las reservas sin recoger también cuentan).
+- Los días se cuentan desde la entrega, no desde la reserva.
+- Una renovación por préstamo, solo si no está vencido.
+
+**Catálogo:** cada recurso (ficha) tiene unidades físicas (ejemplares) con estado `DISPONIBLE`, `RESERVADO`, `PRESTADO`, `EN_MANTENIMIENTO` o `DADO_DE_BAJA`. `RESERVADO` y `PRESTADO` solo los maneja el sistema. Un ejemplar que vuelve dañado pasa a mantenimiento. Lo que tiene historial no se borra: se da de baja.
+
+**Usuarios:** la baja (`INACTIVO`) exige que no tenga recursos sin devolver. La suspensión (`SUSPENDIDO`) sí se permite aunque deba algo: pierde el acceso y no puede pedir más, pero sus préstamos se siguen devolviendo en el mostrador. En ambos casos sus reservas sin recoger se cancelan.
 
 ## Estructura del proyecto
 
@@ -226,32 +277,34 @@ Para probar los endpoints protegidos en Swagger: haz `POST /login/`, copia el va
 .
 ├── manage.py
 ├── requirements.txt
-├── .env.example
-├── prestamos_sistema/     Configuración del proyecto (settings, urls)
-├── users/                 Usuarios, autenticación, perfil y administración de usuarios
-│   ├── models.py          Modelo Usuario, tipos y estados
-│   ├── permissions.py     Permiso EsAdministrador
-│   ├── serializers.py
-│   ├── views.py
-│   └── urls.py
-└── prestamos/             Recursos, reservas y reglas de plazo
-    ├── models.py          Recurso, Prestamo, EstadoPrestamo
-    ├── services.py        Cálculo de la fecha límite
-    ├── serializers.py
-    ├── views.py
-    └── urls.py
+├── .env.example                 Plantilla de variables de entorno
+├── prestamos_sistema/           Configuración (settings, urls, paginación)
+├── users/                       Usuarios, autenticación, perfil y administración de usuarios
+│   ├── models.py                Usuario, tipos y estados
+│   ├── permissions.py           Permiso EsAdministrador
+│   ├── services.py              Cierre de sesiones, cambios de estado, recuperación de contraseña
+│   └── serializers.py, views.py, urls.py
+├── catalogo/                    Categorías, fichas de recurso y ejemplares físicos
+│   ├── models.py
+│   ├── services.py              Reglas del catálogo (qué se puede prestar, bajas)
+│   └── serializers.py, views.py, urls.py, tests.py
+├── prestamos/                   Préstamos, reservas y políticas por tipo de usuario
+│   ├── models.py
+│   ├── services.py              Reglas de préstamo (reservar, entregar, devolver, vencer...)
+│   ├── management/commands/     Comando marcar_vencidos
+│   └── serializers.py, views.py, urls.py, tests.py
+└── guia/                        Guía de la API para el frontend (LaTeX y PDF)
 ```
 
 ## Estado del proyecto
 
-**Implementado:** autenticación JWT, perfil, administración de usuarios, catálogo de recursos, reservas, devoluciones y documentación Swagger.
+**Implementado:** autenticación JWT y recuperación de contraseña, perfil, administración de usuarios, catálogo con fichas y ejemplares, reservas con entrega en mostrador, devoluciones, pérdidas, renovaciones, vencimientos automáticos, políticas configurables, historial con filtros y documentación Swagger. Catálogo y préstamos tienen pruebas automatizadas.
 
 **Pendiente:**
 
-- Separar el recurso en ficha de catálogo y ejemplar físico, como en el modelo de dominio.
-- Períodos de préstamo configurables por el administrador (hoy están fijos en el código).
-- Marcado automático de préstamos vencidos.
-- Pruebas automatizadas.
+- Límite de intentos en login y registro.
+- Pruebas automatizadas del módulo de usuarios (hoy solo cubren cambios de estado, filtros, acceso y recuperación de contraseña).
+- Que el administrador no conozca la contraseña de las cuentas que crea (por ejemplo, enviando al usuario un correo para que cree la suya).
 - Interfaz web en React.
 
 ## Equipo

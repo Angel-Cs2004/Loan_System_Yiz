@@ -1,0 +1,440 @@
+\documentclass[11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{parskip}
+\usepackage{amssymb}
+\usepackage{longtable}
+
+\newcommand{\us}{\_\allowbreak}
+\newcommand{\dt}{.\allowbreak}
+\newcommand{\slh}{/\allowbreak}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{gray!10},
+    frame=single,
+    breaklines=true,
+    columns=fullflexible,
+    showstringspaces=false,
+}
+
+\newcommand{\metodo}[2]{\textbf{\texttt{#1}} \texttt{#2}}
+
+\title{API de pr\'estamos --- referencia para frontend\\\large Rama \texttt{prueba\us db\us middle}}
+\author{Proyecto \texttt{prestamos\us sistema}}
+\date{}
+
+\begin{document}
+\shorthandoff{"}
+\maketitle
+
+\section{Cambios que rompen compatibilidad}
+
+\subsection*{Usuarios y pr\'estamos (\'ultimo cambio)}
+
+\begin{enumerate}
+    \item \textbf{Los mensajes de error de Django y DRF ahora vienen en espa\~nol} (\textquotedblleft Este campo es requerido.\textquotedblright{} en vez de \textquotedblleft This field is required.\textquotedblright). Si el front compara textos de error en ingl\'es, hay que cambiarlo.
+    \item \textbf{Dar de baja a un usuario con \texttt{PATCH \{"status": "INACTIVO"\}}} ahora sigue la misma regla que el \texttt{DELETE}: \texttt{400} si tiene recursos sin devolver. Sus reservas sin recoger ya no lo impiden: se cancelan solas.
+\end{enumerate}
+
+\subsection*{M\'odulo pr\'estamos}
+
+\begin{enumerate}
+    \item \textbf{Todas las listas vienen paginadas} (usuarios, cat\'alogo y pr\'estamos). Antes llegaba un arreglo; ahora llega un objeto y el arreglo est\'a en \texttt{results}:
+\begin{lstlisting}
+{"count": 57, "next": "http://.../?page=2", "previous": null, "results": [ ... ]}
+\end{lstlisting}
+    20 por p\'agina. \texttt{?page=2} pide la siguiente y \texttt{?page\us size=50} cambia el tama\~no (m\'aximo 100).
+    \item \textbf{Ya no se pueden eliminar pr\'estamos}: \texttt{DELETE /prestamos/admin/reservas/\{id\}/} responde \texttt{405}. El historial se conserva completo; para cerrar un pr\'estamo sin devoluci\'on est\'an \texttt{perdido/} (admin) y \texttt{cancelar/} (usuario).
+    \item \textbf{\texttt{POST /prestamos/reservar/} responde el pr\'estamo completo} (antes solo el \texttt{id}).
+    \item \textbf{Reservar tiene reglas nuevas} (ver secci\'on Reservas): con un pr\'estamo vencido no se puede pedir otro, solo un ejemplar por recurso y un tope de pr\'estamos simult\'aneos.
+    \item \textbf{Reservar ya no entrega el recurso.} \texttt{POST /prestamos/reservar/} deja el pr\'estamo en \texttt{RESERVADO} (sin \texttt{fecha\us limite}) y el usuario tiene \textbf{24 horas} para recogerlo en el mostrador. Cuando lo recoge, el admin usa \texttt{POST .../entregar/} y reci\'en ah\'i pasa a \texttt{ACTIVO} y corren sus d\'ias. Si no lo recoge, se cancela sola.
+    \item \textbf{Cancelar solo funciona antes de recoger} (estado \texttt{RESERVADO}). Ya no existe el plazo de 30 minutos.
+    \item \textbf{Los pr\'estamos ahora s\'i pasan a \texttt{VENCIDO}} cuando se supera la fecha l\'imite, y hay estados nuevos: \texttt{RESERVADO}, \texttt{PERDIDO} y \texttt{CANCELADO}. El ejemplar tiene uno nuevo: \texttt{RESERVADO} (apartado, esperando que lo recojan).
+    \item \textbf{Fechas en hora de Per\'u}: \texttt{fecha\us limite} y \texttt{fecha\us devolucion} se calculan con el d\'ia de Lima. \texttt{fecha\us prestamo} sigue llegando en UTC (con \texttt{Z} o con \texttt{-05:00}).
+\end{enumerate}
+
+\subsection*{M\'odulo cat\'alogo}
+
+Todo lo que es gesti\'on de recursos se movi\'o de \texttt{/prestamos/} a un m\'odulo propio, \texttt{/catalogo/}. Las rutas viejas ya no existen.
+
+\begin{longtable}{p{7cm}p{8cm}}
+\textbf{Antes} & \textbf{Ahora} \\
+\hline
+\endhead
+\texttt{/prestamos/recursos/} & \texttt{/catalogo/recursos/} \\
+\texttt{/prestamos/admin/recursos/...} & \texttt{/catalogo/admin/recursos/...} \\
+\texttt{/prestamos/admin/ejemplares/\{id\}/} & \texttt{/catalogo/admin/ejemplares/\{id\}/} \\
+\texttt{/prestamos/admin/categorias/...} & \texttt{/catalogo/admin/categorias/...} \\
+\end{longtable}
+
+Adem\'as:
+\begin{enumerate}
+    \item \textbf{Dar de baja una ficha ya no es un \texttt{PATCH}.} \texttt{estado\us ficha} es de solo lectura; se usa \texttt{POST .../baja/} y \texttt{POST .../reactivar/}.
+    \item \textbf{\texttt{condicion} del ejemplar ya no es texto libre}: es \texttt{BUENO}, \texttt{REGULAR} o \texttt{DANADO}. El texto libre va en el campo nuevo \texttt{observaciones}.
+    \item \textbf{Al crear un ejemplar ya no se manda \texttt{ficha\us recurso}} en el cuerpo: sale de la URL.
+    \item \textbf{\texttt{categoria} es obligatoria} al crear una ficha.
+    \item \textbf{Solo \texttt{PATCH}}: los endpoints de detalle del cat\'alogo ya no aceptan \texttt{PUT}.
+\end{enumerate}
+
+\subsection*{Separaci\'on en fichas y ejemplares}
+
+\begin{enumerate}
+    \item \textbf{Reservar ya no manda \texttt{recurso}, manda \texttt{ficha\us recurso}.} El usuario elige una ficha del cat\'alogo (\textquotedblleft Laptop Dell XPS\textquotedblright), no una unidad f\'isica puntual --- el backend elige autom\'aticamente cu\'al ejemplar disponible asignarle.
+    \item \textbf{El cat\'alogo ya no trae \texttt{disponible} (booleano).} Ahora trae \texttt{disponibles} (n\'umero), porque una ficha puede tener varias unidades f\'isicas con estados independientes.
+\end{enumerate}
+
+\section{Autenticaci\'on}
+
+Todos los endpoints salvo registro y login requieren el header:
+\begin{lstlisting}
+Authorization: Bearer <access_token>
+\end{lstlisting}
+Obtenido con \texttt{POST /login/}. El token de acceso dura 15 minutos; usar \texttt{POST /login/refresh/} con el \texttt{refresh} token para renovarlo.
+
+Los endpoints bajo \texttt{/admin/} exigen adem\'as que \texttt{tipo\us usuario} del usuario logueado sea \texttt{ADMINISTRATOR}; si no, devuelven \texttt{403}.
+
+\textbf{CORS:} la API solo acepta llamadas del navegador desde las direcciones configuradas en el backend (por defecto \texttt{http://localhost:5173}, el puerto de Vite). Si el front corre en otro puerto o dominio y la consola del navegador muestra un error de CORS, hay que agregar esa direcci\'on a \texttt{CORS\us ALLOWED\us ORIGINS} en el \texttt{.env} del backend.
+
+\subsection*{Olvid\'e mi contrase\~na (p\'ublico)}
+\metodo{POST}{/users/password/olvide/}
+\begin{lstlisting}
+{"email": "daniel@unsa.edu.pe"}
+\end{lstlisting}
+Siempre responde \texttt{200} con el mismo mensaje, exista o no el correo (as\'i nadie puede averiguar qu\'e correos est\'an registrados). Si existe y el usuario est\'a activo, le llega un correo con un enlace al \textbf{frontend}:
+\begin{lstlisting}
+<FRONTEND_URL>/restablecer-password?uid=MTI&token=cd1x2-...
+\end{lstlisting}
+El front necesita una pantalla en esa ruta que lea \texttt{uid} y \texttt{token} de la URL, pida la contrase\~na nueva y llame a:
+
+\metodo{POST}{/users/password/restablecer/}
+\begin{lstlisting}
+{"uid": "MTI", "token": "cd1x2-...", "password_nueva": "OtraClave456!"}
+\end{lstlisting}
+Responde \texttt{200} y cierra todas las sesiones abiertas de ese usuario; luego debe iniciar sesi\'on normalmente. El enlace vence en \textbf{1 hora} y sirve una sola vez. Un enlace inv\'alido o vencido responde \texttt{400} en \texttt{token}; una contrase\~na d\'ebil, \texttt{400} en \texttt{password}.
+
+En desarrollo los correos no se env\'ian: se imprimen en la terminal donde corre el servidor.
+
+\section{Usuarios (admin)}
+
+\metodo{GET, POST}{/users/admin/usuarios/}
+
+\metodo{GET, PATCH, DELETE}{/users/admin/usuarios/\{id\}/}
+
+\texttt{GET} trae un usuario por su \texttt{id} (por ejemplo, el \texttt{"usuario": 5} de un pr\'estamo, o para llenar el formulario de edici\'on).
+
+Filtros del listado, combinables:
+\begin{itemize}
+    \item \texttt{?q=} --- DNI o CUI exacto, o parte del nombre, apellido o email (\texttt{?q=daniel perez}: cada palabra debe aparecer en alguno de ellos).
+    \item \texttt{?tipo\us usuario=} \texttt{TEACHER}, \texttt{STUDENT}, \texttt{ADMINISTRATIVE\us STAFF} o \texttt{ADMINISTRATOR}.
+    \item \texttt{?status=} \texttt{ACTIVO}, \texttt{INACTIVO} o \texttt{SUSPENDIDO}.
+\end{itemize}
+Un valor que no existe responde \texttt{400}.
+
+Cambios de estado (\texttt{PATCH \{"status": ...\}} o \texttt{DELETE}, que equivale a \texttt{INACTIVO}):
+\begin{itemize}
+    \item \texttt{INACTIVO} (baja): \texttt{400} si tiene recursos sin devolver (\texttt{ACTIVO} o \texttt{VENCIDO}).
+    \item \texttt{SUSPENDIDO}: se permite aunque deba algo. Pierde el acceso y no puede pedir m\'as; sus pr\'estamos se siguen devolviendo en el mostrador.
+    \item En ambos casos sus reservas sin recoger se cancelan y los ejemplares quedan libres.
+    \item Nadie puede cambiar su propio rol ni su propio estado.
+\end{itemize}
+
+\section{Cat\'alogo de recursos}
+
+En la API, un \textbf{recurso} es una ficha (\textquotedblleft Proyector Epson\textquotedblright) y sus \textbf{ejemplares} son las unidades f\'isicas, cada una con su c\'odigo de inventario.
+
+\subsection*{Listar recursos (cualquier usuario)}
+\metodo{GET}{/catalogo/recursos/}
+
+Solo devuelve fichas \texttt{ACTIVA}, ordenadas por nombre (paginado: los datos van en \texttt{results}). Filtros opcionales, combinables:
+\begin{itemize}
+    \item \texttt{?q=epson} --- busca en nombre y descripci\'on.
+    \item \texttt{?categoria=<uuid>} --- solo esa categor\'ia (\texttt{400} si no es un UUID).
+    \item \texttt{?solo\us disponibles=true} --- solo fichas con al menos una unidad libre.
+\end{itemize}
+\begin{lstlisting}
+{
+  "count": 1, "next": null, "previous": null,
+  "results": [
+  {
+    "id": "uuid",
+    "nombre": "Laptop Dell XPS 15",
+    "descripcion": "...",
+    "categoria": "uuid o null",
+    "categoria_nombre": "Equipos",
+    "estado_ficha": "ACTIVA",
+    "total_ejemplares": 3,
+    "disponibles": 2,
+    "disponibilidad": "DISPONIBLE"
+  }
+  ]
+}
+\end{lstlisting}
+\texttt{total\us ejemplares} no cuenta los ejemplares \texttt{DADO\us DE\us BAJA}. \texttt{disponibilidad} se calcula: \texttt{SIN\us EJEMPLARES} si el total es 0, \texttt{DISPONIBLE} si hay al menos uno libre y \texttt{AGOTADO} si todos est\'an prestados o en mantenimiento.
+
+\subsection*{Ver un recurso (cualquier usuario)}
+\metodo{GET}{/catalogo/recursos/\{id\}/}
+
+Mismos campos que en el listado. Una ficha dada de baja responde \texttt{404}.
+
+\subsection*{Listar categor\'ias (cualquier usuario)}
+\metodo{GET}{/catalogo/categorias/}
+
+Para armar el filtro por categor\'ia del cat\'alogo.
+
+\subsection*{Cat\'alogo completo, con ejemplares (admin)}
+\metodo{GET}{/catalogo/admin/recursos/}
+
+Incluye tambi\'en las fichas \texttt{DADA\us DE\us BAJA} y un arreglo \texttt{ejemplares} por ficha. Acepta los mismos filtros que el listado p\'ublico, m\'as \texttt{?estado\us ficha=ACTIVA} o \texttt{DADA\us DE\us BAJA}.
+\begin{lstlisting}
+{
+  "id": "uuid",
+  "nombre": "Laptop Dell XPS 15",
+  ...
+  "ejemplares": [
+    {"id": "uuid", "ficha_recurso": "uuid", "codigo_inventario": "LAP-001",
+     "estado": "DISPONIBLE", "condicion": "BUENO", "observaciones": ""}
+  ]
+}
+\end{lstlisting}
+
+\subsection*{Crear una ficha (admin)}
+\metodo{POST}{/catalogo/admin/recursos/}
+\begin{lstlisting}
+{"nombre": "Proyector Epson", "descripcion": "...", "categoria": "uuid"}
+\end{lstlisting}
+\texttt{categoria} es obligatoria. El nombre no se puede repetir dentro de la misma categor\'ia (sin importar may\'usculas); si se repite responde \texttt{400}.
+
+\subsection*{Ver, editar o eliminar una ficha (admin)}
+\metodo{GET, PATCH, DELETE}{/catalogo/admin/recursos/\{id\}/}
+
+\texttt{PATCH} edita \texttt{nombre}, \texttt{descripcion} y \texttt{categoria}. \texttt{DELETE} borra la ficha y sus ejemplares \textbf{solo si ninguno se prest\'o nunca}; si hay historial responde \texttt{409} y hay que darla de baja.
+
+\subsection*{Dar de baja o reactivar una ficha (admin)}
+\metodo{POST}{/catalogo/admin/recursos/\{id\}/baja/}
+
+\metodo{POST}{/catalogo/admin/recursos/\{id\}/reactivar/}
+
+Sin cuerpo. Responden la ficha actualizada, o \texttt{400} si ya estaba en ese estado. Una ficha de baja desaparece del cat\'alogo p\'ublico, no se puede reservar y no acepta ejemplares nuevos. Las reservas sin recoger de ese recurso se cancelan en el acto. Los pr\'estamos ya entregados siguen y se devuelven normalmente.
+
+\subsection*{Listar o registrar unidades f\'isicas de una ficha (admin)}
+\metodo{GET, POST}{/catalogo/admin/recursos/\{ficha\us id\}/ejemplares/}
+\begin{lstlisting}
+{"codigo_inventario": "LAP-006", "condicion": "BUENO", "observaciones": "Nueva, en caja"}
+\end{lstlisting}
+\begin{itemize}
+    \item \texttt{codigo\us inventario} se guarda sin espacios y en may\'usculas, y es \'unico.
+    \item \texttt{estado} es opcional: \texttt{DISPONIBLE} (por defecto) o \texttt{EN\us MANTENIMIENTO}.
+    \item \texttt{condicion} es opcional, \texttt{BUENO} por defecto.
+    \item Responde \texttt{404} si la ficha no existe y \texttt{400} si est\'a dada de baja.
+\end{itemize}
+
+\subsection*{Editar un ejemplar puntual (admin)}
+\metodo{GET, PATCH, DELETE}{/catalogo/admin/ejemplares/\{id\}/}
+
+Reglas del \texttt{PATCH}:
+\begin{itemize}
+    \item \texttt{estado} puede ser \texttt{DISPONIBLE}, \texttt{EN\us MANTENIMIENTO} o \texttt{DADO\us DE\us BAJA} (perdido o roto).
+    \item \texttt{PRESTADO} y \texttt{RESERVADO} los asigna solo el sistema: no se pueden poner a mano, y un ejemplar en esos estados no se cambia por \texttt{PATCH} (cambia al entregar, devolver o cancelar).
+    \item Un ejemplar \texttt{DANADO} no puede quedar \texttt{DISPONIBLE}.
+    \item No se puede cambiar de ficha.
+\end{itemize}
+\texttt{DELETE} solo funciona si el ejemplar nunca se prest\'o; si tiene historial responde \texttt{409} y hay que pasarlo a \texttt{DADO\us DE\us BAJA}.
+
+\section{Categor\'ias (admin)}
+
+\metodo{GET, POST}{/catalogo/admin/categorias/}
+
+\metodo{GET, PATCH, DELETE}{/catalogo/admin/categorias/\{id\}/}
+\begin{lstlisting}
+{"nombre": "Equipos"}
+\end{lstlisting}
+\texttt{nombre} es \'unico sin importar may\'usculas; repetirlo devuelve \texttt{400}. Eliminar una categor\'ia que tiene fichas devuelve \texttt{409}.
+
+\section{Pol\'iticas de pr\'estamo}
+
+\metodo{GET}{/prestamos/admin/politicas/}
+
+\metodo{GET, PATCH}{/prestamos/admin/politicas/\{id\}/}
+\begin{lstlisting}
+{"dias_maximo_prestamo": 10, "max_prestamos_simultaneos": 3}
+\end{lstlisting}
+\begin{itemize}
+    \item Hay una pol\'itica por cada tipo de usuario (\texttt{TEACHER}, \texttt{STUDENT}, \texttt{ADMINISTRATIVE\us STAFF}, \texttt{ADMINISTRATOR}) y vienen creadas de f\'abrica: no se crean ni se eliminan. \texttt{tipo\us usuario} se ve pero no se cambia.
+    \item \texttt{dias\us maximo\us prestamo} y \texttt{max\us prestamos\us simultaneos} deben ser al menos 1. \texttt{max\us prestamos\us simultaneos} es cu\'antos recursos puede tener afuera a la vez un usuario de ese tipo.
+    \item Cambiar los d\'ias afecta a toda reserva \textbf{nueva} (y a las renovaciones); no recalcula las reservas ya existentes.
+    \item Solo \texttt{PATCH}, no \texttt{PUT}.
+\end{itemize}
+
+\section{Reservas}
+
+\subsection*{Ciclo de un pr\'estamo}
+\begin{lstlisting}
+Desde la app:   reservar  -> RESERVADO --(admin: entregar/)--> ACTIVO
+                               |
+                               +--(usuario: cancelar/, o pasan 24 h)--> CANCELADO
+
+En el mostrador (admin: POST /prestamos/admin/reservas/) -> ACTIVO de una vez
+
+ACTIVO --(pasa la fecha limite)--> VENCIDO
+ACTIVO o VENCIDO --(admin: devolver/)--> DEVUELTO
+ACTIVO o VENCIDO --(admin: perdido/)---> PERDIDO
+\end{lstlisting}
+
+\subsection*{Reservar un recurso (usuario)}
+\metodo{POST}{/prestamos/reservar/}
+\begin{lstlisting}
+{"ficha_recurso": "uuid"}
+\end{lstlisting}
+El backend busca un ejemplar \texttt{DISPONIBLE} de esa ficha (que debe estar \texttt{ACTIVA}) y lo aparta: el pr\'estamo queda \texttt{RESERVADO} y el ejemplar \texttt{RESERVADO}. Todav\'ia no tiene \texttt{fecha\us limite}: los d\'ias empiezan a contar cuando lo recoge. \texttt{recoger\us antes\us de} indica hasta cu\'ando puede pasar por el mostrador (24 horas); despu\'es la reserva se cancela sola y el ejemplar se libera. Responde \texttt{201} con el pr\'estamo completo (mismos campos que en \textit{Ver mis pr\'estamos}).
+
+Una reserva sin recoger ya ocupa cupo: cuenta para \texttt{max\us prestamos\us simultaneos} y para la regla de un ejemplar por recurso.
+
+Responde \texttt{400} con un mensaje de error si:
+\begin{itemize}
+    \item no hay unidades libres o la ficha est\'a dada de baja;
+    \item el usuario tiene alg\'un pr\'estamo \texttt{VENCIDO} (primero debe devolverlo);
+    \item ya tiene un ejemplar de ese mismo recurso sin devolver;
+    \item lleg\'o a su \texttt{max\us prestamos\us simultaneos}.
+\end{itemize}
+
+\subsection*{Ver mis pr\'estamos (usuario)}
+\metodo{GET}{/prestamos/mis-reservas/}
+\begin{lstlisting}
+{
+  "count": 1, "next": null, "previous": null,
+  "results": [
+  {
+    "id": "uuid",
+    "usuario": 5,
+    "usuario_email": "daniel@unsa.edu.pe",
+    "tipo_usuario": "STUDENT",
+    "ejemplar_fisico": "uuid",
+    "codigo_inventario": "LAP-002",
+    "ficha_recurso_nombre": "Laptop Dell XPS 15",
+    "fecha_prestamo": "2026-10-06T09:30:00-05:00",
+    "fecha_entrega": "2026-10-06T10:00:00-05:00",
+    "fecha_limite": "2026-10-12",
+    "fecha_devolucion": null,
+    "estado": "ACTIVO",
+    "recoger_antes_de": null,
+    "con_retraso": false,
+    "renovaciones": 0,
+    "registrado_por_email": null
+  }
+  ]
+}
+\end{lstlisting}
+\begin{itemize}
+    \item Ordenados del m\'as reciente al m\'as antiguo.
+    \item \texttt{estado} se actualiza solo: un \texttt{ACTIVO} cuya \texttt{fecha\us limite} ya pas\'o aparece como \texttt{VENCIDO}, y una reserva que pas\'o 24 horas sin recogerse aparece como \texttt{CANCELADO}.
+    \item \texttt{fecha\us prestamo}: cu\'ando se reserv\'o (o se prest\'o en el mostrador). \texttt{fecha\us entrega}: cu\'ando se lo llev\'o; \texttt{null} mientras est\'a \texttt{RESERVADO}.
+    \item \texttt{fecha\us limite}: \texttt{null} mientras est\'a \texttt{RESERVADO}.
+    \item \texttt{recoger\us antes\us de}: solo en \texttt{RESERVADO}; si no, \texttt{null}.
+    \item \texttt{con\us retraso}: \texttt{true} si est\'a vencido o si se devolvi\'o despu\'es de la fecha l\'imite. Sirve para marcar en rojo.
+    \item \texttt{registrado\us por\us email}: el admin que lo entreg\'o (al prestar en el mostrador o al marcar la entrega de una reserva); \texttt{null} mientras la reserva no se recoge.
+\end{itemize}
+
+\subsection*{Cancelar una reserva propia (usuario)}
+\metodo{POST}{/prestamos/mis-reservas/\{id\}/cancelar/}
+
+Sin cuerpo. Para deshacer una reserva hecha por error: solo mientras est\'a \texttt{RESERVADO}, es decir, \textbf{antes de recogerla}. Queda \texttt{CANCELADO} en el historial y el ejemplar vuelve a estar disponible. Si ya la recogi\'o (\texttt{ACTIVO}, o un pr\'estamo hecho en el mostrador) responde \texttt{400}: hay que devolverlo. El pr\'estamo de otro usuario responde \texttt{404}.
+
+\subsection*{Renovar un pr\'estamo (admin)}
+\metodo{POST}{/prestamos/admin/reservas/\{id\}/renovar/}
+
+Solo el admin: el usuario que necesita m\'as d\'ias lo pide en el mostrador (no hay ruta para que lo haga desde la app). Sin cuerpo. La nueva \texttt{fecha\us limite} es hoy m\'as los d\'ias de la pol\'itica, y \texttt{renovaciones} sube en 1. Responde \texttt{400} si:
+\begin{itemize}
+    \item el pr\'estamo no est\'a \texttt{ACTIVO} (un \texttt{VENCIDO} no se renueva, se devuelve);
+    \item ya se renov\'o una vez (m\'aximo 1);
+    \item el recurso fue dado de baja del cat\'alogo;
+    \item es muy pronto: la renovaci\'on no extender\'ia el plazo (por ejemplo, el mismo d\'ia en que se pidi\'o).
+\end{itemize}
+
+\subsection*{Listar todas las reservas (admin)}
+\metodo{GET}{/prestamos/admin/reservas/}
+
+Filtros opcionales, combinables:
+\begin{itemize}
+    \item \texttt{?estado=} \texttt{ACTIVO}, \texttt{VENCIDO}, \texttt{DEVUELTO}, \texttt{PERDIDO} o \texttt{CANCELADO}. Otro valor responde \texttt{400}.
+    \item \texttt{?usuario=5} --- historial de un usuario (por su \texttt{id}). Por ejemplo, \texttt{?usuario=5\&estado=VENCIDO} muestra lo que ese usuario tiene atrasado.
+    \item \texttt{?codigo\us inventario=LAP-002} --- por la etiqueta del equipo (se normaliza: \texttt{lap-002} tambi\'en vale). Para devolver en el mostrador: \texttt{?codigo\us inventario=LAP-002\&estado=ACTIVO} trae el pr\'estamo abierto de esa unidad (si est\'a atrasado, con \texttt{estado=VENCIDO}). Sin estado, es el historial de esa unidad.
+    \item \texttt{?ficha\us recurso=<uuid>} --- historial de un recurso con todas sus unidades (\texttt{400} si no es un UUID).
+\end{itemize}
+
+\subsection*{Registrar un pr\'estamo en el mostrador (admin)}
+\metodo{POST}{/prestamos/admin/reservas/}
+
+El admin presta a nombre de otro usuario. Se manda el recurso (el sistema elige la unidad) \textbf{o} el c\'odigo de inventario de la unidad exacta que se est\'a entregando, nunca los dos:
+\begin{lstlisting}
+{"usuario": 5, "ficha_recurso": "uuid"}
+{"usuario": 5, "codigo_inventario": "LAP-002"}
+\end{lstlisting}
+\begin{itemize}
+    \item \texttt{codigo\us inventario} es el de la etiqueta del equipo: se puede escribir o leer con un lector de c\'odigo de barras. Se normaliza igual que en el cat\'alogo, as\'i que \texttt{"lap-002 "} tambi\'en vale.
+    \item \texttt{usuario} es el \texttt{id}. Flujo sugerido: buscar a la persona con \texttt{GET /users/admin/usuarios/?q=<dni o cui>}, mostrar sus datos y lo que tiene pendiente (\texttt{GET /prestamos/admin/reservas/?usuario=<id>}) para que el admin confirme, y reci\'en ah\'i hacer el \texttt{POST}.
+    \item El pr\'estamo nace \texttt{ACTIVO} (no pasa por \texttt{RESERVADO}): el usuario se lo lleva en ese momento. Por eso no se puede cancelar.
+    \item Se aplican las mismas reglas que al reservar, y los d\'ias son los del tipo del usuario (no los del admin).
+    \item Tambi\'en responde \texttt{400} si el usuario no est\'a activo, si el c\'odigo no existe o si ese ejemplar no est\'a disponible (el mensaje indica su estado, por ejemplo \textit{en mantenimiento}).
+\end{itemize}
+
+\subsection*{Ver una reserva puntual (admin)}
+\metodo{GET}{/prestamos/admin/reservas/\{id\}/}
+
+Ya no acepta \texttt{DELETE} (responde \texttt{405}): el historial no se borra.
+
+\subsection*{Entregar una reserva (admin)}
+\metodo{POST}{/prestamos/admin/reservas/\{id\}/entregar/}
+
+Sin cuerpo. El usuario pas\'o por el mostrador a recoger lo que reserv\'o desde la app. El pr\'estamo pasa a \texttt{ACTIVO}, se guarda \texttt{fecha\us entrega} y \texttt{fecha\us limite} se calcula desde hoy con la pol\'itica del usuario. El ejemplar pasa a \texttt{PRESTADO}. Desde aqu\'i ya no se puede cancelar. Responde \texttt{400} si:
+\begin{itemize}
+    \item no est\'a \texttt{RESERVADO} (ya se entreg\'o, se cancel\'o o caduc\'o por pasar las 24 horas);
+    \item el usuario ya no est\'a activo o tiene alg\'un pr\'estamo \texttt{VENCIDO};
+    \item el recurso se dio de baja del cat\'alogo mientras estaba reservado.
+\end{itemize}
+
+\subsection*{Cancelar una reserva (admin)}
+\metodo{POST}{/prestamos/admin/reservas/\{id\}/cancelar/}
+
+Sin cuerpo. Igual que la cancelaci\'on del usuario, pero sobre cualquier reserva (por ejemplo, si el alumno avisa que no va a ir). Solo en \texttt{RESERVADO}; si ya se entreg\'o responde \texttt{400}: se registra la devoluci\'on.
+
+\subsection*{Registrar la devoluci\'on (admin)}
+\metodo{POST}{/prestamos/admin/reservas/\{id\}/devolver/}
+
+Cuerpo opcional, con la condici\'on en la que vuelve el ejemplar:
+\begin{lstlisting}
+{"condicion": "DANADO"}
+\end{lstlisting}
+Marca la reserva \texttt{DEVUELTO}, pone \texttt{fecha\us devolucion} a hoy y libera el ejemplar: vuelve a \texttt{DISPONIBLE}, o pasa a \texttt{EN\us MANTENIMIENTO} si vuelve \texttt{DANADO}. Un \texttt{VENCIDO} tambi\'en se devuelve (queda con \texttt{con\us retraso: true}). Una reserva ya cerrada (\texttt{DEVUELTO}, \texttt{PERDIDO} o \texttt{CANCELADO}) o todav\'ia sin recoger (\texttt{RESERVADO}) responde \texttt{400}.
+
+\subsection*{Marcar un recurso como perdido (admin)}
+\metodo{POST}{/prestamos/admin/reservas/\{id\}/perdido/}
+
+Cuerpo opcional, con un detalle que se agrega a las observaciones del ejemplar:
+\begin{lstlisting}
+{"observaciones": "Se lo robaron en el bus"}
+\end{lstlisting}
+Para cuando el recurso nunca vuelve. La reserva queda \texttt{PERDIDO} y el ejemplar pasa a \texttt{DADO\us DE\us BAJA} (deja de contar en el cat\'alogo pero conserva su historial). No cuenta para el tope del usuario. Una reserva ya cerrada o todav\'ia sin recoger (\texttt{RESERVADO}) responde \texttt{400}.
+
+\section{Estados posibles}
+
+\begin{longtable}{p{4.3cm}p{10.7cm}}
+\textbf{Campo} & \textbf{Valores} \\
+\hline
+\endhead
+\texttt{Prestamo\dt estado} & \texttt{RESERVADO}, \texttt{ACTIVO}, \texttt{VENCIDO} (pendientes); \texttt{DEVUELTO}, \texttt{PERDIDO}, \texttt{CANCELADO} (cerrados) \\
+\texttt{EjemplarFisico\dt estado} & \texttt{DISPONIBLE}, \texttt{RESERVADO}, \texttt{PRESTADO}, \texttt{EN\us MANTENIMIENTO}, \texttt{DADO\us DE\us BAJA} \\
+\texttt{EjemplarFisico\dt condicion} & \texttt{BUENO}, \texttt{REGULAR}, \texttt{DANADO} \\
+\texttt{FichaRecurso\dt estado\us ficha} & \texttt{ACTIVA}, \texttt{DADA\us DE\us BAJA} \\
+\texttt{disponibilidad} (calculado) & \texttt{DISPONIBLE}, \texttt{AGOTADO}, \texttt{SIN\us EJEMPLARES} \\
+\texttt{Usuario\dt tipo\us usuario} & \texttt{TEACHER}, \texttt{STUDENT}, \texttt{ADMINISTRATIVE\us STAFF}, \texttt{ADMINISTRATOR} \\
+\end{longtable}
+
+\end{document}
