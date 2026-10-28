@@ -1,8 +1,11 @@
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 from .models import Usuario, TipoUsuario
-from .services import cerrar_sesiones
+from .services import aplicar_cambio_de_estado, cerrar_sesiones, validar_cambio_de_estado
 
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -107,6 +110,9 @@ class UsuarioAdminSerializer(serializers.ModelSerializer):
                 if campo in attrs and attrs[campo] != getattr(instancia, campo):
                     raise serializers.ValidationError({campo: 'No puedes cambiar tu propio rol ni estado.'})
 
+        if instancia is not None and 'status' in attrs and attrs['status'] != instancia.status:
+            validar_cambio_de_estado(instancia, attrs['status'])
+
         tipo = attrs.get('tipo_usuario', getattr(instancia, 'tipo_usuario', None))
         cui = attrs.get('cui', getattr(instancia, 'cui', None))
         if 'cui' in attrs and not cui:
@@ -124,9 +130,38 @@ class UsuarioAdminSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
+        nuevo_status = validated_data.pop('status', instance.status)
         if password:
             instance.set_password(password)
         instance = super().update(instance, validated_data)
+        if nuevo_status != instance.status:
+            aplicar_cambio_de_estado(instance, nuevo_status)
         if password:
             cerrar_sesiones(instance)
         return instance
+
+
+class SolicitarRestablecimientoSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, email):
+        return email.strip().lower()
+
+
+class RestablecerPasswordSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    password_nueva = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        invalido = serializers.ValidationError({'token': 'El enlace no es valido o ya vencio. Solicita uno nuevo.'})
+        try:
+            pk = force_str(urlsafe_base64_decode(attrs['uid']))
+            usuario = Usuario.objects.get(pk=pk, is_active=True)
+        except (ValueError, TypeError, OverflowError, Usuario.DoesNotExist):
+            raise invalido
+        if not default_token_generator.check_token(usuario, attrs['token']):
+            raise invalido
+        validar_password(attrs['password_nueva'], usuario)
+        attrs['usuario'] = usuario
+        return attrs
