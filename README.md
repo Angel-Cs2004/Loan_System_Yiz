@@ -1,6 +1,6 @@
 # Sistema de Préstamos
 
-Sistema de préstamos para una institución educativa. El backend está construido con **Django REST Framework** y **PostgreSQL**, con autenticación **JWT** y documentación **Swagger**. Gestiona usuarios por rol, recursos, reservas y devoluciones. El frontend está previsto en **React**.
+Sistema de préstamos para una institución educativa. El backend está construido con **Django REST Framework** y **PostgreSQL**, con autenticación **JWT** y documentación **Swagger**. Gestiona usuarios por rol, recursos, reservas y devoluciones. El frontend es una aplicación **React** con **Vite**.
 
 Proyecto de la asignatura *Trabajo Interdisciplinario II* — Escuela Profesional de Ciencia de la Computación, Universidad Nacional de San Agustín de Arequipa (UNSA), 2026.
 
@@ -10,6 +10,7 @@ Proyecto de la asignatura *Trabajo Interdisciplinario II* — Escuela Profesiona
 - [Tecnologías](#tecnologías)
 - [Roles de usuario](#roles-de-usuario)
 - [Instalación](#instalación)
+- [Frontend](#frontend)
 - [Endpoints](#endpoints)
 - [Reglas de negocio](#reglas-de-negocio)
 - [Estructura del proyecto](#estructura-del-proyecto)
@@ -41,6 +42,7 @@ Proyecto de la asignatura *Trabajo Interdisciplinario II* — Escuela Profesiona
 | CORS | django-cors-headers |
 | Hash de contraseñas | Argon2 |
 | Configuración | python-decouple (variables de entorno) |
+| Frontend | React 19 + Vite, React Router, CSS Modules |
 
 ## Roles de usuario
 
@@ -160,6 +162,28 @@ La API actualiza sola los préstamos vencidos y las reservas no recogidas cada v
 ```bash
 python manage.py test
 ```
+
+## Frontend
+
+La interfaz web está en `frontend/crud_prestamos/`. Necesita Node.js 20 o superior.
+
+```bash
+cd frontend/crud_prestamos
+npm install
+npm run dev
+```
+
+Se abre en <http://localhost:5173> y llama a la API por `/api`, que Vite redirige al backend en `http://127.0.0.1:8000` (con el backend corriendo en otro lado: `API_PROXY_TARGET=http://host:puerto npm run dev`). El enlace del correo de recuperación de contraseña apunta a `FRONTEND_URL`, así que en el `.env` del backend debe quedar `FRONTEND_URL=http://localhost:5173`.
+
+Para producción, `npm run build` genera la carpeta `dist/`. Si la API se sirve en otra dirección, se indica al compilar con `VITE_API_URL` (ver `frontend/crud_prestamos/.env.example`) y esa dirección debe estar en `CORS_ALLOWED_ORIGINS`.
+
+Pantallas según el rol con que se inicia sesión:
+
+| Quién | Pantallas |
+|---|---|
+| Cualquiera | Iniciar sesión, crear cuenta, olvidé mi contraseña y restablecer contraseña |
+| Estudiante, docente y personal | Catálogo con búsqueda y filtros, detalle del recurso con reserva, mis préstamos (en curso e historial, cancelar reserva) y mi perfil con cambio de contraseña |
+| Administrador | Inicio con resumen, préstamos (filtros, detalle, entregar, devolver, renovar, marcar perdido, cancelar), mostrador para prestar sin reserva, recursos con ejemplares e historial, categorías, políticas, usuarios con su historial y cambios de estado, y su perfil |
 
 ## Documentación de la API
 
@@ -293,19 +317,25 @@ ACTIVO o VENCIDO ──► DEVUELTO (devolución) o PERDIDO (pérdida)
 │   ├── services.py              Reglas de préstamo (reservar, entregar, devolver, vencer...)
 │   ├── management/commands/     Comando marcar_vencidos
 │   └── serializers.py, views.py, urls.py, tests.py
+├── frontend/crud_prestamos/     Interfaz web en React (Vite)
+│   └── src/
+│       ├── api/                 Cliente HTTP y funciones por módulo de la API
+│       ├── context/, routes/    Sesión y rutas protegidas por rol
+│       ├── layouts/             Panel de administrador y portal de usuario
+│       ├── pages/               Pantallas (auth, admin, portal)
+│       └── components/          Componentes de interfaz reutilizables
 └── guia/                        Guía de la API para el frontend (LaTeX y PDF)
 ```
 
 ## Estado del proyecto
 
-**Implementado:** autenticación JWT y recuperación de contraseña, perfil, administración de usuarios, catálogo con fichas y ejemplares, reservas con entrega en mostrador, devoluciones, pérdidas, renovaciones, vencimientos automáticos, políticas configurables, historial con filtros y documentación Swagger. Catálogo y préstamos tienen pruebas automatizadas.
+**Implementado:** autenticación JWT y recuperación de contraseña, perfil, administración de usuarios, catálogo con fichas y ejemplares, reservas con entrega en mostrador, devoluciones, pérdidas, renovaciones, vencimientos automáticos, políticas configurables, historial con filtros, documentación Swagger e interfaz web en React para administradores y usuarios. Catálogo y préstamos tienen pruebas automatizadas.
 
 **Pendiente:**
 
 - Límite de intentos en login y registro.
 - Pruebas automatizadas del módulo de usuarios (hoy solo cubren cambios de estado, filtros, acceso y recuperación de contraseña).
 - Que el administrador no conozca la contraseña de las cuentas que crea (por ejemplo, enviando al usuario un correo para que cree la suya).
-- Interfaz web en React.
 
 ## Equipo
 

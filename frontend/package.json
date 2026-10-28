@@ -3,7 +3,6 @@
   "private": true,
   "scripts": {
     "dev": "npm --prefix crud_prestamos run dev",
-    "build": "npm --prefix crud_prestamos run build",
-    "lint": "npm --prefix crud_prestamos run lint"
+    "build": "npm --prefix crud_prestamos run build"
   }
 }
