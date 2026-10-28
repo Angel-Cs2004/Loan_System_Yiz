@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { apiError } from '../../api/client'
 import { useAuth } from '../../context/AuthContext'
 import { inicioDe } from '../../routes/guards'
+import styles from './Auth.module.css'
 import AuthCard, { ErrorBox, Field, PasswordField, SubmitButton } from './AuthCard'
 
 export default function Login() {
@@ -30,7 +31,11 @@ export default function Login() {
   }
 
   return (
-    <AuthCard title="Iniciar sesión" subtitle="Ingresa tus credenciales para acceder a tu cuenta.">
+    <AuthCard
+      title="Iniciar sesión"
+      subtitle="Ingresa tus credenciales para acceder a tu cuenta."
+      footer={<span>¿No tienes cuenta? <Link to="/registro">Regístrate</Link></span>}
+    >
       <form onSubmit={handleSubmit}>
         <ErrorBox message={error} />
         <Field
@@ -41,6 +46,7 @@ export default function Login() {
           id="password" label="Contraseña" placeholder="Ingresa tu contraseña"
           value={password} onChange={setPassword} autoComplete="current-password" disabled={loading}
         />
+        <p className={styles['inline-link']}><Link to="/olvide-password">¿Olvidaste tu contraseña?</Link></p>
         <SubmitButton loading={loading} loadingLabel="Verificando...">Ingresar a mi cuenta</SubmitButton>
       </form>
     </AuthCard>
