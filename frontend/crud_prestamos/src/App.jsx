@@ -6,6 +6,7 @@ import OlvidePassword from './pages/auth/OlvidePassword'
 import Registro from './pages/auth/Registro'
 import RestablecerPassword from './pages/auth/RestablecerPassword'
 import Categorias from './pages/admin/Categorias'
+import Politicas from './pages/admin/Politicas'
 import RecursoDetalle from './pages/admin/RecursoDetalle'
 import Recursos from './pages/admin/Recursos'
 import NotFound from './pages/NotFound'
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="recursos" element={<Recursos />} />
             <Route path="recursos/:id" element={<RecursoDetalle />} />
             <Route path="categorias" element={<Categorias />} />
+            <Route path="politicas" element={<Politicas />} />
             <Route path="perfil" element={<Perfil />} />
           </Route>
         </Route>
