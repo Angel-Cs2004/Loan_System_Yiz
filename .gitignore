@@ -27,3 +27,8 @@ db.sqlite3
 *.out
 *.toc
 *.synctex.gz
+
+# Frontend dependencies and generated build
+node_modules/
+frontend/crud_prestamos/dist/
+

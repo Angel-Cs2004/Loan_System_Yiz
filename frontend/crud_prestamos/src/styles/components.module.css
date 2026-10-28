@@ -1,0 +1,207 @@
+.eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--color-eyebrow)
+}
+.page {
+  max-width: 1180px;
+  margin: auto;
+  padding: 36px var(--space-13) 64px
+}
+.pageHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-10);
+  margin-bottom: 23px
+}
+.pageHeading h2 {
+  font: 800 28px var(--font-heading);
+  margin: var(--space-3) 0 var(--space-1);
+  color: var(--color-heading)
+}
+.pageHeading p,.panelHeading p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px
+}
+.badge {
+  padding: 9px var(--space-6);
+  background: var(--color-badge-background);
+  border-radius: 9px;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap
+}
+.panel {
+  background: var(--color-white);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px var(--shadow-panel);
+  padding: var(--space-12);
+  margin-bottom: var(--space-11)
+}
+.panel h3 {
+  font: 700 16px var(--font-heading);
+  color: var(--color-heading-secondary);
+  margin: 0 0 var(--space-10)
+}
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: var(--space-8) var(--space-10)
+}
+.formGrid label,.filter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600
+}
+.formGrid input,.formGrid select,.formGrid textarea,.filter select {
+  width: 100%;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-control-border);
+  border-radius: 8px;
+  background: white;
+  color: var(--color-control-text);
+  outline: none
+}
+.formGrid input:focus,.formGrid select:focus,.formGrid textarea:focus,.filter select:focus {
+  border-color: var(--color-focus);
+  box-shadow: 0 0 0 3px var(--color-focus-shadow)
+}
+.wide {
+  grid-column: 1/-1
+}
+.actions {
+  display: flex;
+  gap: var(--space-4);
+  margin-top: 17px
+}
+.button {
+  padding: var(--space-4) var(--space-8);
+  border: 1px solid var(--color-primary);
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: white;
+  font-size: 13px;
+  font-weight: 700
+}
+.button:hover {
+  background: var(--color-primary-hover)
+}
+.button:disabled {
+  opacity: .65;
+  cursor: wait
+}
+.button.secondary {
+  border-color: var(--color-control-border);
+  background: var(--color-white);
+  color: var(--color-text-secondary)
+}
+.button.secondary:hover {
+  background: var(--color-button-hover-background)
+}
+.notice {
+  font-size: 13px;
+  margin: var(--space-5) 0 0
+}
+.error,.danger {
+  color: var(--color-danger)
+}
+.tablePanel {
+  padding: 0;
+  overflow: hidden
+}
+.panelHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-11) var(--space-12);
+  border-bottom: 1px solid var(--color-divider)
+}
+.panelHeading h3 {
+  margin: 0 0 var(--space-1)
+}
+.tableWrap {
+  overflow-x: auto
+}
+.tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px
+}
+.tableWrap th {
+  background: var(--color-table-header);
+  color: var(--color-table-heading);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  font-size: 10px
+}
+.tableWrap th,.tableWrap td {
+  padding: var(--space-6) var(--space-8);
+  border-bottom: 1px solid var(--color-divider);
+  vertical-align: middle
+}
+.tableWrap td {
+  color: var(--color-table-text)
+}
+.nowrap {
+  white-space: nowrap
+}
+.link {
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  padding: var(--space-1)
+}
+.link.danger {
+  color: var(--color-danger)
+}
+.empty {
+  padding: var(--space-14);
+  text-align: center;
+  color: var(--color-empty-text);
+  font-size: 13px
+}
+@media(max-width:650px) {
+  .page {
+    padding: 25px var(--space-7) 48px
+  }
+  .pageHeading h2 {
+    font-size: 24px
+  }
+  .panel {
+    padding: 17px
+  }
+  .tablePanel {
+    padding: 0
+  }
+  .panelHeading {
+    padding: var(--space-9)
+  }
+  .formGrid {
+    grid-template-columns: 1fr
+  }
+  .wide {
+    grid-column: auto
+  }
+  .pageHeading {
+    align-items: flex-start
+  }
+  .panelHeading>.button {
+    white-space: nowrap
+  }
+  .tableWrap th,.tableWrap td {
+    padding: 11px var(--space-5)
+  }
+  
+}
