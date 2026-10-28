@@ -1,9 +1,12 @@
+from django.db import transaction
 from rest_framework.exceptions import APIException, ValidationError
 
 from .models import CondicionEjemplar, EjemplarFisico, EstadoEjemplar, EstadoFicha
 
 
 ESTADOS_MANUALES = [EstadoEjemplar.DISPONIBLE, EstadoEjemplar.EN_MANTENIMIENTO, EstadoEjemplar.DADO_DE_BAJA]
+
+ESTADOS_DEL_SISTEMA = [EstadoEjemplar.PRESTADO, EstadoEjemplar.RESERVADO]
 
 ESTADOS_INICIALES = [EstadoEjemplar.DISPONIBLE, EstadoEjemplar.EN_MANTENIMIENTO]
 
@@ -23,10 +26,15 @@ def ejemplares_prestables(ficha):
 
 
 def dar_de_baja_ficha(ficha):
+    from prestamos.models import Prestamo
+    from prestamos.services import cancelar_reservas
+
     if ficha.estado_ficha == EstadoFicha.DADA_DE_BAJA:
         raise ValidationError('El recurso ya esta dado de baja.')
-    ficha.estado_ficha = EstadoFicha.DADA_DE_BAJA
-    ficha.save(update_fields=['estado_ficha'])
+    with transaction.atomic():
+        ficha.estado_ficha = EstadoFicha.DADA_DE_BAJA
+        ficha.save(update_fields=['estado_ficha'])
+        cancelar_reservas(Prestamo.objects.filter(ejemplar_fisico__ficha_recurso=ficha))
     return ficha
 
 

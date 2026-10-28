@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from .models import Categoria, EjemplarFisico, EstadoEjemplar, EstadoFicha, FichaRecurso
-from .services import ESTADOS_INICIALES, ESTADOS_MANUALES, validar_estado_y_condicion
+from .services import ESTADOS_DEL_SISTEMA, ESTADOS_INICIALES, ESTADOS_MANUALES, validar_estado_y_condicion
 
 
 class CategoriaSerializer(serializers.ModelSerializer):
@@ -40,10 +40,12 @@ class EjemplarFisicoSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError('Un ejemplar nuevo solo puede registrarse disponible o en mantenimiento.')
             return estado
 
-        if self.instance.estado == EstadoEjemplar.PRESTADO and estado != EstadoEjemplar.PRESTADO:
-            raise serializers.ValidationError('El ejemplar esta prestado; su estado cambia al registrar la devolucion.')
+        if self.instance.estado in ESTADOS_DEL_SISTEMA and estado != self.instance.estado:
+            raise serializers.ValidationError(
+                f'El ejemplar esta {self.instance.get_estado_display().lower()}; su estado cambia desde prestamos.'
+            )
         if estado != self.instance.estado and estado not in ESTADOS_MANUALES:
-            raise serializers.ValidationError('El estado prestado solo lo asigna el sistema al registrar un prestamo.')
+            raise serializers.ValidationError('Los estados prestado y reservado solo los asigna el sistema.')
         return estado
 
     def validate(self, attrs):

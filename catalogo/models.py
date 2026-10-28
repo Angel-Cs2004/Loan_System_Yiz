@@ -8,6 +8,7 @@ from django.db.models.functions import Lower
 class EstadoEjemplar(models.TextChoices):
     DISPONIBLE = 'DISPONIBLE', 'Disponible'
     PRESTADO = 'PRESTADO', 'Prestado'
+    RESERVADO = 'RESERVADO', 'Reservado'
     EN_MANTENIMIENTO = 'EN_MANTENIMIENTO', 'En mantenimiento'
     DADO_DE_BAJA = 'DADO_DE_BAJA', 'Dado de baja'
 

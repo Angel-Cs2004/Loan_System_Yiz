@@ -23,7 +23,9 @@ class CatalogoTestCase(APITestCase):
         self.client.force_authenticate(self.alumno)
         respuesta = self.client.post('/prestamos/reservar/', {'ficha_recurso': str((ficha or self.ficha).pk)})
         self.client.force_authenticate(self.admin)
-        return respuesta
+        if respuesta.status_code != 201:
+            return respuesta
+        return self.client.post(f"/prestamos/admin/reservas/{respuesta.data['id']}/entregar/")
 
 
 class CategoriaTests(CatalogoTestCase):
@@ -40,7 +42,7 @@ class CategoriaTests(CatalogoTestCase):
         self.client.force_authenticate(self.alumno)
         respuesta = self.client.get('/catalogo/categorias/')
         self.assertEqual(respuesta.status_code, 200)
-        self.assertEqual(respuesta.data[0]['nombre'], 'Equipos')
+        self.assertEqual(respuesta.data['results'][0]['nombre'], 'Equipos')
 
 
 class FichaTests(CatalogoTestCase):
@@ -70,11 +72,11 @@ class FichaTests(CatalogoTestCase):
     def test_baja_oculta_del_catalogo_y_reactivar_la_devuelve(self):
         self.assertEqual(self.client.post(f'/catalogo/admin/recursos/{self.ficha.pk}/baja/').status_code, 200)
         self.assertEqual(self.client.post(f'/catalogo/admin/recursos/{self.ficha.pk}/baja/').status_code, 400)
-        self.assertEqual(self.client.get('/catalogo/recursos/').data, [])
+        self.assertEqual(self.client.get('/catalogo/recursos/').data['results'], [])
         self.assertEqual(self.client.get(f'/catalogo/recursos/{self.ficha.pk}/').status_code, 404)
 
         self.client.post(f'/catalogo/admin/recursos/{self.ficha.pk}/reactivar/')
-        self.assertEqual(len(self.client.get('/catalogo/recursos/').data), 1)
+        self.assertEqual(self.client.get('/catalogo/recursos/').data['count'], 1)
 
     def test_baja_con_prestamo_activo_se_permite(self):
         self.prestar()
@@ -98,18 +100,18 @@ class DisponibilidadTests(CatalogoTestCase):
     def test_conteos_y_disponibilidad(self):
         EjemplarFisico.objects.create(ficha_recurso=self.ficha, codigo_inventario='PROY-02', estado=EstadoEjemplar.EN_MANTENIMIENTO)
         EjemplarFisico.objects.create(ficha_recurso=self.ficha, codigo_inventario='PROY-03', estado=EstadoEjemplar.DADO_DE_BAJA)
-        recurso = self.client.get('/catalogo/recursos/').data[0]
+        recurso = self.client.get('/catalogo/recursos/').data['results'][0]
         self.assertEqual((recurso['total_ejemplares'], recurso['disponibles'], recurso['disponibilidad']), (2, 1, 'DISPONIBLE'))
 
         self.prestar()
-        recurso = self.client.get('/catalogo/recursos/').data[0]
+        recurso = self.client.get('/catalogo/recursos/').data['results'][0]
         self.assertEqual((recurso['disponibles'], recurso['disponibilidad']), (0, 'AGOTADO'))
 
     def test_filtros_del_catalogo(self):
         FichaRecurso.objects.create(nombre='Laptop Lenovo', categoria=self.equipos)
-        self.assertEqual(len(self.client.get('/catalogo/recursos/', {'q': 'lenovo'}).data), 1)
-        self.assertEqual(len(self.client.get('/catalogo/recursos/', {'solo_disponibles': 'true'}).data), 1)
-        self.assertEqual(len(self.client.get('/catalogo/recursos/', {'categoria': str(self.equipos.pk)}).data), 2)
+        self.assertEqual(len(self.client.get('/catalogo/recursos/', {'q': 'lenovo'}).data['results']), 1)
+        self.assertEqual(len(self.client.get('/catalogo/recursos/', {'solo_disponibles': 'true'}).data['results']), 1)
+        self.assertEqual(len(self.client.get('/catalogo/recursos/', {'categoria': str(self.equipos.pk)}).data['results']), 2)
         self.assertEqual(self.client.get('/catalogo/recursos/', {'categoria': 'no-es-uuid'}).status_code, 400)
 
 
@@ -201,5 +203,5 @@ class PrestamoConCatalogoTests(CatalogoTestCase):
     def test_no_se_elimina_un_prestamo_pendiente(self):
         prestamo_id = self.prestar().data['id']
         respuesta = self.client.delete(f'/prestamos/admin/reservas/{prestamo_id}/')
-        self.assertEqual(respuesta.status_code, 400)
+        self.assertEqual(respuesta.status_code, 405)
         self.assertEqual(Prestamo.objects.get(pk=prestamo_id).estado, EstadoPrestamo.ACTIVO)
