@@ -314,6 +314,120 @@
 }
 
 
+.login-card-wide {
+  max-width: 620px;
+}
+
+.brand-mark {
+  display: flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+  background: linear-gradient(135deg, var(--color-login-accent), var(--color-login-primary-dark));
+  box-shadow: 0 8px 18px rgba(37, 99, 235, .25);
+  color: white;
+  font: 800 15px var(--font-heading);
+}
+
+.brand-text {
+  color: var(--color-login-ink);
+  font: 800 15px var(--font-heading);
+  letter-spacing: 1.6px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--space-9);
+}
+
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-login-muted);
+  font-size: 11px;
+}
+
+.login-success {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-12);
+  padding: var(--space-5) var(--space-7);
+  border: 1px solid #bbf0d3;
+  border-radius: 10px;
+  background: #f0fbf5;
+  color: #17734a;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.success-icon {
+  display: flex;
+  width: 21px;
+  height: 21px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #d5f5e3;
+  font-weight: 800;
+}
+
+.auth-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2) var(--space-9);
+  margin-top: var(--space-9);
+  color: #718096;
+  font-size: 13px;
+}
+
+.auth-footer a {
+  color: var(--color-login-primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.auth-footer a:hover {
+  text-decoration: underline;
+}
+
+.inline-link {
+  display: block;
+  margin: -12px 0 0;
+  text-align: right;
+  font-size: 12px;
+}
+
+.inline-link a {
+  color: var(--color-login-primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.error-code {
+  display: block;
+  background: linear-gradient(110deg, var(--color-login-primary), var(--color-login-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font: 800 64px/1 var(--font-heading);
+}
+
+.error-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-13);
+}
+
+.error-actions a {
+  text-decoration: none;
+}
+
 @keyframes login-spin {
   to { transform: rotate(360deg); }
 }
@@ -341,6 +455,10 @@
 
   .login-heading h1 {
     font-size: 27px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
   }
 }
 

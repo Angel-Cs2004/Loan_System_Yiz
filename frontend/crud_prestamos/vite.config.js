@@ -5,9 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/login': 'http://127.0.0.1:8000',
-      '/users': 'http://127.0.0.1:8000',
-      '/prestamos': 'http://127.0.0.1:8000',
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        rewrite: path => path.replace(/^\/api/, ''),
+      },
     },
   },
 })
