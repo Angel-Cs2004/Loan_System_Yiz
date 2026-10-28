@@ -7,6 +7,7 @@ import styles from './Layout.module.css'
 
 const TABS = [
   { to: '/catalogo', label: 'Catálogo' },
+  { to: '/mis-prestamos', label: 'Mis préstamos' },
   { to: '/perfil', label: 'Mi perfil' },
 ]
 

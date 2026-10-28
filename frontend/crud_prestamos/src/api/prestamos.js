@@ -5,7 +5,7 @@ export const getPolitica = id => api.get(`/prestamos/admin/politicas/${id}/`)
 export const updatePolitica = (id, data) => api.patch(`/prestamos/admin/politicas/${id}/`, data)
 
 export const reservar = fichaId => api.post('/prestamos/reservar/', { ficha_recurso: fichaId })
-export const listMisPrestamos = params => api.get('/prestamos/mis-reservas/', params)
+export const listMisPrestamos = () => todos('/prestamos/mis-reservas/')
 export const cancelarMiPrestamo = id => api.post(`/prestamos/mis-reservas/${id}/cancelar/`)
 
 export const listPrestamos = params => api.get('/prestamos/admin/reservas/', params)

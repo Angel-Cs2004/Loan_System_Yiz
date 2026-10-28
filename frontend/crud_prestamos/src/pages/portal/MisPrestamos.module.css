@@ -1,0 +1,72 @@
+.tabs {
+  margin-bottom: var(--space-11);
+}
+
+.list {
+  display: grid;
+  gap: var(--space-7);
+}
+
+.card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-9) var(--space-13);
+  padding: var(--space-11) var(--space-12);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-primary);
+  border-radius: 14px;
+  background: var(--color-white);
+  box-shadow: 0 8px 24px var(--shadow-panel);
+}
+
+.activo {
+  border-left-color: var(--color-success);
+}
+
+.vencido {
+  border-left-color: var(--color-danger);
+}
+
+.cardMain {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+}
+
+.cardMain h3 {
+  margin: var(--space-1) 0 0;
+  color: var(--color-heading);
+  font: 700 17px var(--font-heading);
+}
+
+.code {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.deadline {
+  display: grid;
+  gap: 3px;
+}
+
+.deadline strong {
+  color: var(--color-heading-secondary);
+  font-size: 13px;
+}
+
+.deadline span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .card {
+    grid-template-columns: 1fr;
+    padding: var(--space-9);
+  }
+
+  .card > button {
+    justify-self: start;
+  }
+}

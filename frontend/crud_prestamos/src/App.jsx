@@ -16,6 +16,7 @@ import Recursos from './pages/admin/Recursos'
 import UsuarioDetalle from './pages/admin/UsuarioDetalle'
 import Usuarios from './pages/admin/Usuarios'
 import Catalogo from './pages/portal/Catalogo'
+import MisPrestamos from './pages/portal/MisPrestamos'
 import RecursoPortal from './pages/portal/RecursoPortal'
 import NotFound from './pages/NotFound'
 import Perfil from './pages/Perfil'
@@ -37,6 +38,7 @@ export default function App() {
         <Route element={<PortalLayout />}>
           <Route path="/catalogo" element={<Catalogo />} />
           <Route path="/catalogo/:id" element={<RecursoPortal />} />
+          <Route path="/mis-prestamos" element={<MisPrestamos />} />
           <Route path="/perfil" element={<Perfil />} />
         </Route>
 
