@@ -5,6 +5,9 @@ import Login from './pages/auth/Login'
 import OlvidePassword from './pages/auth/OlvidePassword'
 import Registro from './pages/auth/Registro'
 import RestablecerPassword from './pages/auth/RestablecerPassword'
+import Categorias from './pages/admin/Categorias'
+import RecursoDetalle from './pages/admin/RecursoDetalle'
+import Recursos from './pages/admin/Recursos'
 import NotFound from './pages/NotFound'
 import Perfil from './pages/Perfil'
 import { GuestOnly, HomeRedirect, RequireAdmin, RequireAuth } from './routes/guards'
@@ -29,6 +32,9 @@ export default function App() {
         <Route path="/admin" element={<RequireAdmin />}>
           <Route element={<AdminLayout />}>
             <Route index element={<HomeRedirect />} />
+            <Route path="recursos" element={<Recursos />} />
+            <Route path="recursos/:id" element={<RecursoDetalle />} />
+            <Route path="categorias" element={<Categorias />} />
             <Route path="perfil" element={<Perfil />} />
           </Route>
         </Route>

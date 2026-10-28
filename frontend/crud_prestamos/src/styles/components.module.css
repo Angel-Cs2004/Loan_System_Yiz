@@ -353,6 +353,31 @@ a.stat:hover {
   font-size: 13px;
   line-height: 1.5
 }
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 38px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer
+}
+.checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary)
+}
+.cellSecondary {
+  display: block;
+  max-width: 280px;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--color-subtle-text);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap
+}
 @media(max-width:650px) {
   .page {
     padding: 25px var(--space-7) 48px

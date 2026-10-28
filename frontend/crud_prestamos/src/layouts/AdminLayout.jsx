@@ -6,6 +6,8 @@ import { iniciales, nombreCompleto } from '../utils/format'
 import styles from './Layout.module.css'
 
 const NAV = [
+  { to: '/admin/recursos', label: 'Recursos', icon: 'resources' },
+  { to: '/admin/categorias', label: 'Categorías', icon: 'categories' },
   { to: '/admin/perfil', label: 'Mi perfil', icon: 'profile' },
 ]
 
