@@ -9,6 +9,7 @@ const NAV = [
   { to: '/admin/recursos', label: 'Recursos', icon: 'resources' },
   { to: '/admin/categorias', label: 'Categorías', icon: 'categories' },
   { to: '/admin/politicas', label: 'Políticas', icon: 'policies' },
+  { to: '/admin/usuarios', label: 'Usuarios', icon: 'users' },
   { to: '/admin/perfil', label: 'Mi perfil', icon: 'profile' },
 ]
 

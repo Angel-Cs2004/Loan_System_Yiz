@@ -9,6 +9,8 @@ import Categorias from './pages/admin/Categorias'
 import Politicas from './pages/admin/Politicas'
 import RecursoDetalle from './pages/admin/RecursoDetalle'
 import Recursos from './pages/admin/Recursos'
+import UsuarioDetalle from './pages/admin/UsuarioDetalle'
+import Usuarios from './pages/admin/Usuarios'
 import NotFound from './pages/NotFound'
 import Perfil from './pages/Perfil'
 import { GuestOnly, HomeRedirect, RequireAdmin, RequireAuth } from './routes/guards'
@@ -37,6 +39,8 @@ export default function App() {
             <Route path="recursos/:id" element={<RecursoDetalle />} />
             <Route path="categorias" element={<Categorias />} />
             <Route path="politicas" element={<Politicas />} />
+            <Route path="usuarios" element={<Usuarios />} />
+            <Route path="usuarios/:id" element={<UsuarioDetalle />} />
             <Route path="perfil" element={<Perfil />} />
           </Route>
         </Route>
