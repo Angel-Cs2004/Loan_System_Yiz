@@ -1,5 +1,8 @@
 .card {
+  display: block;
   min-width: 0;
+  color: inherit;
+  text-decoration: none;
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: 14px;
@@ -13,7 +16,8 @@
 .cardBody { padding: var(--space-11); }
 .cardMeta { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-7); }
 .category { overflow: hidden; color: var(--color-eyebrow); font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-.availability { flex-shrink: 0; padding: 6px 9px; font-size: 10px; }
+.availability { flex-shrink: 0; padding: 6px 9px; border-radius: 9px; background: var(--color-badge-background); color: var(--color-primary); font-size: 10px; font-weight: 700; white-space: nowrap; }
+.card:focus-visible { outline: 3px solid var(--color-focus-shadow); outline-offset: 2px; }
 .title { display: -webkit-box; overflow: hidden; margin: 0 0 var(--space-5); color: var(--color-heading); font: 700 16px/1.4 var(--font-heading); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .description { display: -webkit-box; overflow: hidden; min-height: 54px; margin: 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
 @media (prefers-reduced-motion: reduce) { .card { transition: none; } .card:hover { transform: none; } }

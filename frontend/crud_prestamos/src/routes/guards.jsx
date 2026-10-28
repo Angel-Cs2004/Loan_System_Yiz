@@ -3,7 +3,7 @@ import { Loading } from '../components/ui/Feedback'
 import { useAuth } from '../context/AuthContext'
 import Forbidden from '../pages/Forbidden'
 
-export const inicioDe = user => (user?.tipo_usuario === 'ADMINISTRATOR' ? '/admin' : '/perfil')
+export const inicioDe = user => (user?.tipo_usuario === 'ADMINISTRATOR' ? '/admin' : '/catalogo')
 
 export function RequireAuth() {
   const { user, checking } = useAuth()

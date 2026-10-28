@@ -15,6 +15,8 @@ import RecursoDetalle from './pages/admin/RecursoDetalle'
 import Recursos from './pages/admin/Recursos'
 import UsuarioDetalle from './pages/admin/UsuarioDetalle'
 import Usuarios from './pages/admin/Usuarios'
+import Catalogo from './pages/portal/Catalogo'
+import RecursoPortal from './pages/portal/RecursoPortal'
 import NotFound from './pages/NotFound'
 import Perfil from './pages/Perfil'
 import { GuestOnly, HomeRedirect, RequireAdmin, RequireAuth } from './routes/guards'
@@ -33,6 +35,8 @@ export default function App() {
         <Route index element={<HomeRedirect />} />
 
         <Route element={<PortalLayout />}>
+          <Route path="/catalogo" element={<Catalogo />} />
+          <Route path="/catalogo/:id" element={<RecursoPortal />} />
           <Route path="/perfil" element={<Perfil />} />
         </Route>
 

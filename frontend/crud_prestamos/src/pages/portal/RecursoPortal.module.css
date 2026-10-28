@@ -1,0 +1,102 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: var(--space-14);
+  padding: var(--space-13);
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-white);
+  box-shadow: 0 8px 24px var(--shadow-panel);
+}
+
+.media {
+  display: flex;
+  min-height: 320px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background:
+    radial-gradient(ellipse at 20% 20%, var(--color-login-glow) 0%, transparent 55%),
+    var(--color-table-header);
+}
+
+.media svg {
+  width: 84px;
+  fill: none;
+  stroke: #aab5c5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.info {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: var(--space-9);
+}
+
+.info h2 {
+  margin: 0;
+  color: var(--color-heading);
+  font: 800 30px/1.2 var(--font-heading);
+}
+
+.description {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-line;
+}
+
+.info dl {
+  width: 100%;
+  padding: var(--space-9) 0;
+  border-top: 1px solid var(--color-divider);
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.reserve {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+
+.reserve button {
+  min-width: 200px;
+  padding: var(--space-6) var(--space-13);
+  font-size: 14px;
+}
+
+.success {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-4);
+  padding: var(--space-9) var(--space-11);
+  border: 1px solid #bbf0d3;
+  border-radius: 12px;
+  background: var(--color-success-background);
+  color: #17734a;
+}
+
+.success p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: 1fr;
+    padding: var(--space-9);
+  }
+
+  .media {
+    min-height: 180px;
+  }
+
+  .info h2 {
+    font-size: 24px;
+  }
+}

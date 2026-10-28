@@ -6,6 +6,7 @@ import { TIPOS_USUARIO, iniciales, nombreCompleto } from '../utils/format'
 import styles from './Layout.module.css'
 
 const TABS = [
+  { to: '/catalogo', label: 'Catálogo' },
   { to: '/perfil', label: 'Mi perfil' },
 ]
 
