@@ -36,12 +36,14 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
+    'corsheaders',
     'catalogo',
     'prestamos',
     'users'
 ]
 AUTH_USER_MODEL = 'users.Usuario'
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -99,9 +101,9 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Lima'
 
 USE_I18N = True
 
@@ -111,17 +113,41 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
+if config('EMAIL_BACKEND', default='console') == 'smtp':
+    MAILERS = {
+        'default': {
+            'BACKEND': 'django.core.mail.backends.smtp.EmailBackend',
+            'OPTIONS': {
+                'host': config('EMAIL_HOST'),
+                'port': config('EMAIL_PORT', default=587, cast=int),
+                'username': config('EMAIL_HOST_USER'),
+                'password': config('EMAIL_HOST_PASSWORD'),
+                'use_tls': config('EMAIL_USE_TLS', default=True, cast=bool),
+            },
+        },
+    }
+else:
+    MAILERS = {
+        'default': {
+            'BACKEND': 'django.core.mail.backends.console.EmailBackend',
+        },
+    }
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Sistema de Prestamos <no-responder@localhost>')
+
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173').rstrip('/')
+
+CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default=FRONTEND_URL, cast=Csv())
+PASSWORD_RESET_TIMEOUT = 60 * 60
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'prestamos_sistema.paginacion.Paginacion',
 }
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),

@@ -14,6 +14,8 @@ db.sqlite3
 # Variables de entorno / secretos
 .env
 .env.*
+# Excepcion: la plantilla si se sube (no tiene secretos, solo los nombres de las variables)
+!.env.example
 
 # Editores y sistema
 .idea/
