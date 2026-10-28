@@ -247,6 +247,7 @@
 }
 .rowLink {
   border: 0;
+  text-decoration: none;
   background: none;
   padding: 0;
   color: var(--color-heading-secondary);
@@ -282,7 +283,7 @@
 }
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit,minmax(200px,1fr));
+  grid-template-columns: repeat(auto-fit,minmax(150px,1fr));
   gap: var(--space-9);
   margin-bottom: var(--space-11)
 }
@@ -407,7 +408,11 @@ a.stat:hover {
     grid-column: auto
   }
   .pageHeading {
+    flex-direction: column;
     align-items: flex-start
+  }
+  .stat strong {
+    font-size: 24px
   }
   .panelHeading>.button {
     white-space: nowrap

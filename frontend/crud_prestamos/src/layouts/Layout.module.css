@@ -208,6 +208,7 @@
 @media (max-width: 900px) {
   .adminShell {
     grid-template-columns: 1fr;
+    align-content: start;
   }
 
   .mobileBar {
