@@ -10,6 +10,12 @@
   --color-heading: #1b2d49;
   --color-muted: #78869a;
   --color-danger: #c43d4d;
+  --color-danger-hover: #a8323f;
+  --color-danger-background: #fdecee;
+  --color-success: #1f8a5b;
+  --color-success-background: #e6f6ee;
+  --color-warning: #b26a00;
+  --color-warning-background: #fff4e0;
   --color-border: #e5eaf2;
   --color-white: #fff;
   --color-text-secondary: #53627a;

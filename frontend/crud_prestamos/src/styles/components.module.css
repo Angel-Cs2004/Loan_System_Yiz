@@ -172,6 +172,187 @@
   color: var(--color-empty-text);
   font-size: 13px
 }
+.small {
+  padding: 6px var(--space-5);
+  font-size: 12px
+}
+.button.dangerButton {
+  border-color: var(--color-danger);
+  background: var(--color-danger)
+}
+.button.dangerButton:hover {
+  background: var(--color-danger-hover)
+}
+.button.ghostDanger {
+  border-color: var(--color-control-border);
+  background: var(--color-white);
+  color: var(--color-danger)
+}
+.button.ghostDanger:hover {
+  background: var(--color-danger-background)
+}
+.headingActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4)
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-5);
+  padding: var(--space-9) var(--space-12);
+  border-bottom: 1px solid var(--color-divider)
+}
+.toolbar .filter {
+  min-width: 170px
+}
+.toolbar .grow {
+  flex: 1;
+  min-width: 220px
+}
+.filter input,.formGrid textarea {
+  width: 100%;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-control-border);
+  border-radius: 8px;
+  background: white;
+  color: var(--color-control-text);
+  outline: none
+}
+.filter input:focus {
+  border-color: var(--color-focus);
+  box-shadow: 0 0 0 3px var(--color-focus-shadow)
+}
+.formGrid textarea {
+  min-height: 90px;
+  resize: vertical
+}
+.hint {
+  color: var(--color-subtle-text);
+  font-size: 11px;
+  font-weight: 500
+}
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px
+}
+.rowLink {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--color-heading-secondary);
+  font-weight: 700;
+  text-align: left
+}
+.rowLink:hover {
+  color: var(--color-primary)
+}
+.muted {
+  color: var(--color-muted)
+}
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(180px,1fr));
+  gap: var(--space-10) var(--space-13);
+  margin: 0
+}
+.detailGrid dt {
+  margin-bottom: var(--space-1);
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .4px;
+  text-transform: uppercase
+}
+.detailGrid dd {
+  margin: 0;
+  color: var(--color-table-text);
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(200px,1fr));
+  gap: var(--space-9);
+  margin-bottom: var(--space-11)
+}
+.stat {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-11);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-white);
+  box-shadow: 0 8px 24px var(--shadow-panel);
+  color: inherit;
+  text-decoration: none;
+  transition: transform .15s, box-shadow .15s
+}
+a.stat:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px #1e355018
+}
+.stat span {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600
+}
+.stat strong {
+  color: var(--color-heading);
+  font: 800 30px var(--font-heading)
+}
+.stat small {
+  color: var(--color-subtle-text);
+  font-size: 11px
+}
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none
+}
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--color-pill-background)
+}
+.segmented button {
+  padding: 7px var(--space-6);
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 700
+}
+.segmented .segmentActive {
+  background: var(--color-white);
+  color: var(--color-primary);
+  box-shadow: 0 2px 6px #1e35501a
+}
+.alert {
+  display: flex;
+  gap: var(--space-4);
+  margin-bottom: var(--space-11);
+  padding: var(--space-6) var(--space-8);
+  border: 1px solid #f7d9a8;
+  border-radius: 12px;
+  background: var(--color-warning-background);
+  color: var(--color-warning);
+  font-size: 13px;
+  line-height: 1.5
+}
 @media(max-width:650px) {
   .page {
     padding: 25px var(--space-7) 48px
@@ -202,6 +383,12 @@
   }
   .tableWrap th,.tableWrap td {
     padding: 11px var(--space-5)
+  }
+  .toolbar {
+    padding: var(--space-9)
+  }
+  .toolbar .filter,.toolbar .grow {
+    min-width: 100%
   }
   
 }
