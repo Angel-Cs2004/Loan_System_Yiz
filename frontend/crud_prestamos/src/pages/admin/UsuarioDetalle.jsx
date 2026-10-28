@@ -55,6 +55,9 @@ export default function UsuarioDetalle() {
           <p>{persona.email}</p>
         </div>
         <div className={ui.headingActions}>
+          {persona.status === 'ACTIVO' && (
+            <Link className={ui.button} to={`/admin/mostrador?usuario=${persona.id}`}>Registrar préstamo</Link>
+          )}
           <button className={`${ui.button} ${ui.secondary}`} onClick={() => setEditar(true)}>Editar</button>
           {persona.status !== 'ACTIVO' && (
             <button className={ui.button} onClick={() => setCambio('ACTIVO')}>Activar</button>

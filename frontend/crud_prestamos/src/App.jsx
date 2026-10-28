@@ -6,6 +6,9 @@ import OlvidePassword from './pages/auth/OlvidePassword'
 import Registro from './pages/auth/Registro'
 import RestablecerPassword from './pages/auth/RestablecerPassword'
 import Categorias from './pages/admin/Categorias'
+import Mostrador from './pages/admin/Mostrador'
+import PrestamoDetalle from './pages/admin/PrestamoDetalle'
+import Prestamos from './pages/admin/Prestamos'
 import Politicas from './pages/admin/Politicas'
 import RecursoDetalle from './pages/admin/RecursoDetalle'
 import Recursos from './pages/admin/Recursos'
@@ -35,6 +38,9 @@ export default function App() {
         <Route path="/admin" element={<RequireAdmin />}>
           <Route element={<AdminLayout />}>
             <Route index element={<HomeRedirect />} />
+            <Route path="prestamos" element={<Prestamos />} />
+            <Route path="prestamos/:id" element={<PrestamoDetalle />} />
+            <Route path="mostrador" element={<Mostrador />} />
             <Route path="recursos" element={<Recursos />} />
             <Route path="recursos/:id" element={<RecursoDetalle />} />
             <Route path="categorias" element={<Categorias />} />

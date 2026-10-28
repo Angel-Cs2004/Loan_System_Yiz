@@ -1,0 +1,79 @@
+.step {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  margin-right: var(--space-3);
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-badge-background);
+  color: var(--color-primary);
+  font-size: 12px;
+  vertical-align: 1px;
+}
+
+.field {
+  max-width: 520px;
+  margin-top: var(--space-9);
+}
+
+.results {
+  display: grid;
+  gap: 6px;
+  max-width: 620px;
+  margin: var(--space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.results button {
+  display: grid;
+  width: 100%;
+  gap: 2px;
+  padding: var(--space-5) var(--space-7);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-white);
+  text-align: left;
+  transition: border-color .15s, background .15s;
+}
+
+.results button:hover {
+  border-color: var(--color-focus);
+  background: var(--color-button-hover-background);
+}
+
+.results strong,
+.selected strong {
+  color: var(--color-heading-secondary);
+  font-size: 14px;
+}
+
+.results span,
+.selected span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.selected {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-9);
+  max-width: 720px;
+  padding: var(--space-8) var(--space-9);
+  border: 1px solid var(--color-focus);
+  border-radius: 12px;
+  background: var(--color-badge-background);
+}
+
+.selected div {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 200px;
+}
+
+.inlineAlert {
+  margin: var(--space-9) var(--space-12) 0;
+}
