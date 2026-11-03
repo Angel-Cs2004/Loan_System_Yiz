@@ -167,7 +167,8 @@ class PrestamoDevolucionView(APIView):
     def post(self, request, pk):
         serializer = DevolucionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        return responder(registrar_devolucion(pk, serializer.validated_data.get('condicion')))
+        datos = serializer.validated_data
+        return responder(registrar_devolucion(pk, datos.get('condicion'), datos.get('observaciones', '')))
 
 
 class PrestamoPerdidoView(APIView):

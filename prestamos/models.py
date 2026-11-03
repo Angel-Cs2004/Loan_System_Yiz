@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 
-from catalogo.models import EjemplarFisico
+from catalogo.models import CondicionEjemplar, EjemplarFisico
 from users.models import TipoUsuario
 
 
@@ -49,6 +49,8 @@ class Prestamo(models.Model):
     fecha_devolucion = models.DateField(null=True, blank=True)
     estado = models.CharField(max_length=20, choices=EstadoPrestamo.choices, default=EstadoPrestamo.RESERVADO)
     renovaciones = models.PositiveSmallIntegerField(default=0)
+    condicion_devolucion = models.CharField(max_length=20, choices=CondicionEjemplar.choices, null=True, blank=True)
+    observaciones = models.TextField(blank=True)
     registrado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='prestamos_registrados',
         null=True, blank=True,

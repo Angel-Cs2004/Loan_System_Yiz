@@ -160,6 +160,9 @@ SPECTACULAR_SETTINGS = {
     'TITLE': 'API Sistema de Préstamos',
     'DESCRIPTION': 'Documentación de endpoints',
     'VERSION': '1.0.0',
+    'ENUM_NAME_OVERRIDES': {
+        'CondicionEjemplarEnum': 'catalogo.models.CondicionEjemplar',
+    },
 }
 
 PASSWORD_HASHERS = [

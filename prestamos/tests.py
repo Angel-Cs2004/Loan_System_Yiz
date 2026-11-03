@@ -11,7 +11,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
-from catalogo.models import Categoria, EjemplarFisico, EstadoEjemplar, FichaRecurso
+from catalogo.models import Categoria, CondicionEjemplar, EjemplarFisico, EstadoEjemplar, FichaRecurso
 from users.models import EstadoUsuario, TipoUsuario, Usuario
 
 from . import services
@@ -266,7 +266,7 @@ class PerdidoTests(PrestamoTestCase):
 
         ejemplar = EjemplarFisico.objects.get(codigo_inventario='EQ-0A')
         self.assertEqual(ejemplar.estado, EstadoEjemplar.DADO_DE_BAJA)
-        self.assertIn('Se lo robaron', ejemplar.observaciones)
+        self.assertEqual(Prestamo.objects.get(pk=prestamo_id).observaciones, 'Se lo robaron')
         self.assertEqual(self.client.get(f'/catalogo/recursos/{self.fichas[0].pk}/').data['total_ejemplares'], 1)
         self.assertEqual(self.prestar(self.fichas[0]).status_code, 200)
 
@@ -276,6 +276,40 @@ class PerdidoTests(PrestamoTestCase):
         self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/perdido/')
         self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/').status_code, 400)
         self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/perdido/').status_code, 400)
+
+
+class SeguimientoEjemplarTests(PrestamoTestCase):
+    def devolver(self, prestamo_id, **datos):
+        self.como_admin()
+        return self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', datos)
+
+    def test_devolucion_guarda_condicion_y_observaciones_en_el_prestamo(self):
+        prestamo_id = self.prestar(self.fichas[0]).data['id']
+        respuesta = self.devolver(prestamo_id, condicion=CondicionEjemplar.REGULAR, observaciones='Tapa doblada')
+        self.assertEqual(respuesta.data['condicion_devolucion'], CondicionEjemplar.REGULAR)
+        self.assertEqual(respuesta.data['observaciones'], 'Tapa doblada')
+
+    def test_sin_cambios_registra_la_condicion_actual(self):
+        prestamo_id = self.prestar(self.fichas[0]).data['id']
+        self.assertEqual(self.devolver(prestamo_id).data['condicion_devolucion'], CondicionEjemplar.BUENO)
+
+    def test_cada_prestamo_conserva_su_propia_observacion(self):
+        EjemplarFisico.objects.filter(codigo_inventario='EQ-0B').update(estado=EstadoEjemplar.EN_MANTENIMIENTO)
+        primero = self.prestar(self.fichas[0]).data['id']
+        self.devolver(primero, observaciones='Volvio sin el cargador')
+        segundo = self.prestar(self.fichas[0], self.otro).data['id']
+        self.devolver(segundo, condicion=CondicionEjemplar.REGULAR, observaciones='Pantalla rayada')
+
+        respuesta = self.client.get('/prestamos/admin/reservas/?codigo_inventario=EQ-0A')
+        historial = {p['id']: (p['condicion_devolucion'], p['observaciones']) for p in respuesta.data['results']}
+        self.assertEqual(historial, {
+            primero: (CondicionEjemplar.BUENO, 'Volvio sin el cargador'),
+            segundo: (CondicionEjemplar.REGULAR, 'Pantalla rayada'),
+        })
+
+    def test_observaciones_de_devolucion_tienen_limite(self):
+        prestamo_id = self.prestar(self.fichas[0]).data['id']
+        self.assertEqual(self.devolver(prestamo_id, observaciones='x' * 501).status_code, 400)
 
 
 class CancelarTests(PrestamoTestCase):

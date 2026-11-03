@@ -158,17 +158,20 @@ def _validar_entregado(prestamo):
 
 
 @transaction.atomic
-def registrar_devolucion(pk, condicion=None):
+def registrar_devolucion(pk, condicion=None, observaciones=''):
     prestamo = _bloquear(Prestamo.objects.all(), pk)
     _validar_entregado(prestamo)
-
-    prestamo.estado = EstadoPrestamo.DEVUELTO
-    prestamo.fecha_devolucion = hoy()
-    prestamo.save(update_fields=['estado', 'fecha_devolucion'])
 
     ejemplar = _bloquear_ejemplar(prestamo)
     if condicion:
         ejemplar.condicion = condicion
+
+    prestamo.estado = EstadoPrestamo.DEVUELTO
+    prestamo.fecha_devolucion = hoy()
+    prestamo.condicion_devolucion = ejemplar.condicion
+    prestamo.observaciones = observaciones
+    prestamo.save(update_fields=['estado', 'fecha_devolucion', 'condicion_devolucion', 'observaciones'])
+
     ejemplar.estado = estado_tras_devolucion(ejemplar.condicion)
     ejemplar.save(update_fields=['condicion', 'estado'])
     return prestamo
@@ -180,15 +183,12 @@ def marcar_perdido(pk, observaciones=''):
     _validar_entregado(prestamo)
 
     prestamo.estado = EstadoPrestamo.PERDIDO
-    prestamo.save(update_fields=['estado'])
+    prestamo.observaciones = observaciones
+    prestamo.save(update_fields=['estado', 'observaciones'])
 
     ejemplar = _bloquear_ejemplar(prestamo)
     ejemplar.estado = EstadoEjemplar.DADO_DE_BAJA
-    nota = f'[{hoy():%d/%m/%Y}] Perdido en el prestamo de {prestamo.usuario.email}.'
-    if observaciones:
-        nota += f' {observaciones}'
-    ejemplar.observaciones = f'{ejemplar.observaciones}\n{nota}'.strip()
-    ejemplar.save(update_fields=['estado', 'observaciones'])
+    ejemplar.save(update_fields=['estado'])
     return prestamo
 
 
