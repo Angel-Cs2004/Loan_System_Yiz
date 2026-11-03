@@ -22,7 +22,7 @@ class CategoriaSerializer(serializers.ModelSerializer):
 class EjemplarFisicoSerializer(serializers.ModelSerializer):
     class Meta:
         model = EjemplarFisico
-        fields = ['id', 'ficha_recurso', 'codigo_inventario', 'estado', 'condicion', 'detalles']
+        fields = ['id', 'ficha_recurso', 'codigo_inventario', 'estado', 'condicion', 'condicion_de_ingreso']
         read_only_fields = ['id', 'ficha_recurso']
 
     def validate_codigo_inventario(self, codigo):

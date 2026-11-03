@@ -92,7 +92,7 @@ class EjemplarFisico(models.Model):
     codigo_inventario = models.CharField(max_length=50, unique=True)
     estado = models.CharField(max_length=20, choices=EstadoEjemplar.choices, default=EstadoEjemplar.DISPONIBLE)
     condicion = models.CharField(max_length=20, choices=CondicionEjemplar.choices, default=CondicionEjemplar.BUENO)
-    detalles = models.TextField(blank=True)
+    condicion_de_ingreso = models.TextField(blank=True)
 
     class Meta:
         db_table = 'ejemplares_fisicos'
