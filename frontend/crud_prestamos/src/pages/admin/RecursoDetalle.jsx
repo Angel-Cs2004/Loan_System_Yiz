@@ -108,7 +108,7 @@ export default function RecursoDetalle() {
           <div className={ui.tableWrap}>
             <table>
               <thead>
-                <tr><th>Código</th><th>Estado</th><th>Condición</th><th>Observaciones</th><th /></tr>
+                <tr><th>Código</th><th>Estado</th><th>Condición</th><th>Condición de ingreso</th><th /></tr>
               </thead>
               <tbody>
                 {ejemplares.map(ejemplar => (
@@ -116,7 +116,7 @@ export default function RecursoDetalle() {
                     <td><strong>{ejemplar.codigo_inventario}</strong></td>
                     <td><StatusBadge value={ejemplar.estado} labels={ESTADOS_EJEMPLAR} /></td>
                     <td><StatusBadge value={ejemplar.condicion} labels={CONDICIONES} /></td>
-                    <td><span className={ui.cellSecondary}>{ejemplar.observaciones || '—'}</span></td>
+                    <td><span className={ui.cellSecondary}>{ejemplar.condicion_de_ingreso || '—'}</span></td>
                     <td>
                       <div className={ui.rowActions}>
                         <button className={ui.link} onClick={() => setEjemplarForm({ id: ejemplar.id })}>Editar</button>

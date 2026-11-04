@@ -8,7 +8,7 @@ import {
 import { Loading } from '../ui/Feedback'
 import FormModal from '../ui/FormModal'
 
-const VACIO = { codigo_inventario: '', estado: 'DISPONIBLE', condicion: 'BUENO', observaciones: '' }
+const VACIO = { codigo_inventario: '', estado: 'DISPONIBLE', condicion: 'BUENO', condicion_de_ingreso: '' }
 
 export default function EjemplarForm({ fichaId, ejemplarId, onClose, onSaved }) {
   const [form, setForm] = useState(ejemplarId ? null : VACIO)
@@ -24,7 +24,7 @@ export default function EjemplarForm({ fichaId, ejemplarId, onClose, onSaved }) 
           codigo_inventario: data.codigo_inventario,
           estado: data.estado,
           condicion: data.condicion,
-          observaciones: data.observaciones,
+          condicion_de_ingreso: data.condicion_de_ingreso,
         })
       })
       .catch(err => setError(apiError(err)))
@@ -84,8 +84,8 @@ export default function EjemplarForm({ fichaId, ejemplarId, onClose, onSaved }) 
             )}
           </label>
           <label className={ui.wide}>
-            Observaciones
-            <textarea value={form.observaciones} onChange={campo('observaciones')} rows={3} />
+            Condición de ingreso
+            <textarea value={form.condicion_de_ingreso} onChange={campo('condicion_de_ingreso')} rows={3} />
           </label>
         </>
       )}
