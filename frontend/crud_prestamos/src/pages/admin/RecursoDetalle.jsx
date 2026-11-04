@@ -53,8 +53,8 @@ export default function RecursoDetalle() {
   if (recurso.error) {
     return (
       <main className={ui.page}>
-        <EmptyState title="No se pudo cargar el recurso" message={recurso.error}>
-          <Link className={ui.button} to="/admin/recursos">Volver a recursos</Link>
+        <EmptyState title="No se pudo cargar la ficha de recurso" message={recurso.error}>
+          <Link className={ui.button} to="/admin/recursos">Volver a fichas de recursos</Link>
         </EmptyState>
       </main>
     )
@@ -65,7 +65,7 @@ export default function RecursoDetalle() {
 
   return (
     <main className={ui.page}>
-      <Link className={ui.backLink} to="/admin/recursos"><Icon name="back" size={14} /> Recursos</Link>
+      <Link className={ui.backLink} to="/admin/recursos"><Icon name="back" size={14} /> Fichas de recursos</Link>
       <div className={ui.pageHeading}>
         <div>
           <span className={ui.eyebrow}>{(ficha.categoria_nombre || 'SIN CATEGORÍA').toUpperCase()}</span>
@@ -96,7 +96,7 @@ export default function RecursoDetalle() {
         <div className={ui.panelHeading}>
           <div>
             <h3>Ejemplares físicos</h3>
-            <p>{activa ? 'Unidades con etiqueta de inventario.' : 'El recurso está dado de baja: no se pueden agregar ejemplares.'}</p>
+            <p>{activa ? 'Unidades con etiqueta de inventario.' : 'La ficha de recurso está dada de baja: no se pueden agregar ejemplares.'}</p>
           </div>
           <button className={ui.button} disabled={!activa} onClick={() => setEjemplarForm({})}>+ Nuevo ejemplar</button>
         </div>
@@ -135,7 +135,7 @@ export default function RecursoDetalle() {
         <div className={ui.panelHeading}>
           <div>
             <h3>Historial de préstamos</h3>
-            <p>Todos los préstamos y reservas de este recurso.</p>
+            <p>Todos los préstamos y reservas asociados a esta ficha.</p>
           </div>
         </div>
         {historial.loading && !historial.results.length ? (
@@ -143,7 +143,7 @@ export default function RecursoDetalle() {
         ) : historial.error ? (
           <p className={`${ui.empty} ${ui.error}`}>{historial.error}</p>
         ) : !historial.results.length ? (
-          <p className={ui.empty}>Este recurso todavía no se ha prestado.</p>
+          <p className={ui.empty}>Esta ficha todavía no tiene préstamos.</p>
         ) : (
           <div className={ui.tableWrap}>
             <table>
@@ -172,7 +172,7 @@ export default function RecursoDetalle() {
           recurso={ficha}
           onClose={() => setEditar(false)}
           onSaved={() => {
-            toast.success('Recurso actualizado.')
+            toast.success('Ficha de recurso actualizada.')
             recurso.reload()
           }}
         />
@@ -184,11 +184,11 @@ export default function RecursoDetalle() {
           onClose={() => setConfirm(null)}
           onDone={accion => {
             if (accion === 'eliminar') {
-              toast.success('Recurso eliminado.')
+              toast.success('Ficha de recurso eliminada.')
               navigate('/admin/recursos', { replace: true })
               return
             }
-            toast.success(accion === 'baja' ? 'Recurso dado de baja.' : 'Recurso reactivado.')
+            toast.success(accion === 'baja' ? 'Ficha de recurso dada de baja.' : 'Ficha de recurso reactivada.')
             refrescar()
           }}
         />

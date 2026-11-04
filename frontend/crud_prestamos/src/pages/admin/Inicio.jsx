@@ -16,7 +16,7 @@ const TARJETAS = [
   { key: 'reservados', label: 'Reservas por entregar', hint: 'Esperan en el mostrador', to: '/admin/prestamos?estado=RESERVADO' },
   { key: 'activos', label: 'Préstamos activos', hint: 'Recursos fuera, dentro del plazo', to: '/admin/prestamos?estado=ACTIVO' },
   { key: 'vencidos', label: 'Préstamos vencidos', hint: 'Pasaron su fecha límite', to: '/admin/prestamos?estado=VENCIDO' },
-  { key: 'recursos', label: 'Recursos activos', hint: 'Fichas en el catálogo', to: '/admin/recursos' },
+  { key: 'recursos', label: 'Fichas de recursos activas', hint: 'Fichas en el catálogo', to: '/admin/recursos' },
   { key: 'usuarios', label: 'Usuarios activos', hint: 'Pueden pedir préstamos', to: '/admin/usuarios' },
 ]
 

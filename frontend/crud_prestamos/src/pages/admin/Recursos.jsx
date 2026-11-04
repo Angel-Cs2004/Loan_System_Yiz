@@ -12,9 +12,9 @@ import ui from '../../styles/components.module.css'
 import { DISPONIBILIDAD, ESTADOS_FICHA } from '../../utils/format'
 
 const MENSAJES = {
-  baja: 'Recurso dado de baja.',
-  reactivar: 'Recurso reactivado.',
-  eliminar: 'Recurso eliminado.',
+  baja: 'Ficha de recurso dada de baja.',
+  reactivar: 'Ficha de recurso reactivada.',
+  eliminar: 'Ficha de recurso eliminada.',
 }
 
 export default function Recursos() {
@@ -40,10 +40,10 @@ export default function Recursos() {
       <div className={ui.pageHeading}>
         <div>
           <span className={ui.eyebrow}>CATÁLOGO</span>
-          <h2>Recursos</h2>
+          <h2>Fichas de recursos</h2>
           <p>Fichas del catálogo con sus ejemplares físicos.</p>
         </div>
-        <button className={ui.button} onClick={() => setForm({})}>+ Nuevo recurso</button>
+        <button className={ui.button} onClick={() => setForm({})}>+ Crear ficha de recurso</button>
       </div>
 
       <section className={`${ui.panel} ${ui.tablePanel}`}>
@@ -77,13 +77,13 @@ export default function Recursos() {
         ) : lista.error ? (
           <p className={`${ui.empty} ${ui.error}`}>{lista.error}</p>
         ) : !lista.results.length ? (
-          <EmptyState title="No hay recursos" message="Prueba con otros filtros o registra un recurso nuevo." />
+          <EmptyState title="No hay fichas de recursos" message="Prueba con otros filtros o crea una ficha de recurso." />
         ) : (
           <div className={ui.tableWrap}>
             <table>
               <thead>
                 <tr>
-                  <th>Recurso</th>
+                  <th>Ficha de recurso</th>
                   <th>Categoría</th>
                   <th>Ejemplares</th>
                   <th>Disponibilidad</th>
@@ -134,10 +134,10 @@ export default function Recursos() {
           onClose={() => setForm(null)}
           onSaved={data => {
             if (form.recurso) {
-              toast.success('Recurso actualizado.')
+              toast.success('Ficha de recurso actualizada.')
               lista.reload()
             } else {
-              toast.success('Recurso creado. Ahora registra sus ejemplares.')
+              toast.success('Ficha de recurso creada. Ahora registra sus ejemplares.')
               navigate(`/admin/recursos/${data.id}`)
             }
           }}

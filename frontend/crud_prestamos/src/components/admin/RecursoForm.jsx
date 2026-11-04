@@ -22,9 +22,9 @@ export default function RecursoForm({ recurso, onClose, onSaved }) {
 
   return (
     <FormModal
-      title={recurso ? 'Editar recurso' : 'Nuevo recurso'}
+      title={recurso ? 'Editar ficha de recurso' : 'Crear ficha de recurso'}
       description={recurso ? null : 'Luego podrás registrar sus ejemplares físicos.'}
-      submitLabel={recurso ? 'Guardar cambios' : 'Crear recurso'}
+      submitLabel={recurso ? 'Guardar cambios' : 'Crear ficha'}
       onSubmit={guardar}
       onClose={onClose}
     >
