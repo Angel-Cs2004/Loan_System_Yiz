@@ -185,7 +185,7 @@ export default function Mostrador() {
                           : `Hasta ${formatearFecha(prestamo.fecha_limite)}`}
                       </td>
                       <td><StatusBadge value={prestamo.estado} labels={ESTADOS_PRESTAMO} /></td>
-                      <td><PrestamoAcciones prestamo={prestamo} compact onDone={cargarPendientes} /></td>
+                      <td><PrestamoAcciones prestamo={prestamo} compact only={['entregar', 'cancelar', 'devolver', 'perdido']} onDone={cargarPendientes} /></td>
                     </tr>
                   ))}
                 </tbody>
