@@ -48,6 +48,13 @@ class EjemplarFisicoSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Los estados prestado y reservado solo los asigna el sistema.')
         return estado
 
+    def validate_condicion(self, condicion):
+        if self.instance is not None and self.instance.estado in ESTADOS_DEL_SISTEMA and condicion != self.instance.condicion:
+            raise serializers.ValidationError(
+                f'El ejemplar esta {self.instance.get_estado_display().lower()}; su condicion se registra al devolverlo.'
+            )
+        return condicion
+
     def validate(self, attrs):
         estado = attrs.get('estado', getattr(self.instance, 'estado', EstadoEjemplar.DISPONIBLE))
         condicion = attrs.get('condicion', getattr(self.instance, 'condicion', None))

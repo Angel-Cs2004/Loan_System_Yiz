@@ -90,7 +90,7 @@ class FichaTests(CatalogoTestCase):
 
     def test_eliminar_ficha_con_historial_responde_409(self):
         prestamo_id = self.prestar().data['id']
-        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/')
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO})
         respuesta = self.client.delete(f'/catalogo/admin/recursos/{self.ficha.pk}/')
         self.assertEqual(respuesta.status_code, 409)
         self.assertTrue(Prestamo.objects.filter(pk=prestamo_id).exists())
@@ -168,7 +168,7 @@ class EjemplarTests(CatalogoTestCase):
 
     def test_eliminar_ejemplar_con_historial_responde_409(self):
         prestamo_id = self.prestar().data['id']
-        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/')
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO})
         respuesta = self.client.delete(f'/catalogo/admin/ejemplares/{self.ejemplar.pk}/')
         self.assertEqual(respuesta.status_code, 409)
 
@@ -185,8 +185,8 @@ class PrestamoConCatalogoTests(CatalogoTestCase):
 
     def test_devolucion_doble_se_rechaza(self):
         prestamo_id = self.prestar().data['id']
-        self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/').status_code, 200)
-        self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/').status_code, 400)
+        self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO}).status_code, 200)
+        self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO}).status_code, 400)
 
     def test_devolucion_danada_va_a_mantenimiento(self):
         prestamo_id = self.prestar().data['id']
@@ -196,7 +196,7 @@ class PrestamoConCatalogoTests(CatalogoTestCase):
 
     def test_devolucion_normal_libera_el_ejemplar(self):
         prestamo_id = self.prestar().data['id']
-        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/')
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO})
         self.ejemplar.refresh_from_db()
         self.assertEqual(self.ejemplar.estado, EstadoEjemplar.DISPONIBLE)
 

@@ -134,14 +134,14 @@ class VencidosTests(PrestamoTestCase):
         self.vencer(prestamo_id)
         call_command('marcar_vencidos', stdout=StringIO())
         self.como_admin()
-        respuesta = self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/')
+        respuesta = self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO})
         self.assertEqual(respuesta.data['estado'], EstadoPrestamo.DEVUELTO)
         self.assertTrue(respuesta.data['con_retraso'])
 
     def test_devolucion_a_tiempo_sin_retraso(self):
         prestamo_id = self.prestar(self.fichas[0]).data['id']
         self.como_admin()
-        respuesta = self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/')
+        respuesta = self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO})
         self.assertFalse(respuesta.data['con_retraso'])
 
 
@@ -163,7 +163,7 @@ class LimitesTests(PrestamoTestCase):
     def test_devolver_libera_un_cupo(self):
         ids = [self.prestar(ficha).data['id'] for ficha in self.fichas[:3]]
         self.como_admin()
-        self.client.post(f'/prestamos/admin/reservas/{ids[0]}/devolver/')
+        self.client.post(f'/prestamos/admin/reservas/{ids[0]}/devolver/', {'condicion': CondicionEjemplar.BUENO})
         self.assertEqual(self.prestar(self.fichas[3]).status_code, 200)
 
     def test_tope_configurable_por_politica(self):
@@ -200,7 +200,7 @@ class HistorialTests(PrestamoTestCase):
     def test_no_se_borra_ni_un_devuelto(self):
         prestamo_id = self.prestar(self.fichas[0]).data['id']
         self.como_admin()
-        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/')
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO})
         self.assertEqual(self.client.delete(f'/prestamos/admin/reservas/{prestamo_id}/').status_code, 405)
         self.assertTrue(Prestamo.objects.filter(pk=prestamo_id).exists())
 
@@ -274,7 +274,7 @@ class PerdidoTests(PrestamoTestCase):
         prestamo_id = self.prestar(self.fichas[0]).data['id']
         self.como_admin()
         self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/perdido/')
-        self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/').status_code, 400)
+        self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO}).status_code, 400)
         self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/perdido/').status_code, 400)
 
 
@@ -289,14 +289,41 @@ class SeguimientoEjemplarTests(PrestamoTestCase):
         self.assertEqual(respuesta.data['condicion_devolucion'], CondicionEjemplar.REGULAR)
         self.assertEqual(respuesta.data['observaciones'], 'Tapa doblada')
 
-    def test_sin_cambios_registra_la_condicion_actual(self):
+    def test_la_condicion_es_obligatoria_al_devolver(self):
         prestamo_id = self.prestar(self.fichas[0]).data['id']
-        self.assertEqual(self.devolver(prestamo_id).data['condicion_devolucion'], CondicionEjemplar.BUENO)
+        respuesta = self.devolver(prestamo_id)
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn('condicion', respuesta.data)
+
+    def test_entrega_guarda_la_condicion_con_la_que_sale(self):
+        EjemplarFisico.objects.filter(codigo_inventario='EQ-0A').update(condicion=CondicionEjemplar.REGULAR)
+        self.assertIsNone(self.reservar(self.fichas[0]).data['condicion_entrega'])
+        prestamo_id = Prestamo.objects.get(usuario=self.alumno).pk
+        self.como_admin()
+        respuesta = self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/entregar/')
+        self.assertEqual(respuesta.data['condicion_entrega'], CondicionEjemplar.REGULAR)
+
+        respuesta = self.devolver(prestamo_id, condicion=CondicionEjemplar.DANADO)
+        self.assertEqual((respuesta.data['condicion_entrega'], respuesta.data['condicion_devolucion']),
+                         (CondicionEjemplar.REGULAR, CondicionEjemplar.DANADO))
+
+    def test_prestamo_del_mostrador_guarda_la_condicion_de_entrega(self):
+        self.como_admin()
+        respuesta = self.client.post('/prestamos/admin/reservas/', {'usuario': self.alumno.pk, 'ficha_recurso': str(self.fichas[0].pk)})
+        self.assertEqual(respuesta.data['condicion_entrega'], CondicionEjemplar.BUENO)
+
+    def test_no_se_cambia_la_condicion_de_un_ejemplar_prestado_o_reservado(self):
+        self.reservar(self.fichas[0])
+        ejemplar = EjemplarFisico.objects.get(codigo_inventario='EQ-0A')
+        self.como_admin()
+        url = f'/catalogo/admin/ejemplares/{ejemplar.pk}/'
+        self.assertEqual(self.client.patch(url, {'condicion': CondicionEjemplar.REGULAR}).status_code, 400)
+        self.assertEqual(self.client.patch(url, {'condicion': CondicionEjemplar.BUENO}).status_code, 200)
 
     def test_cada_prestamo_conserva_su_propia_observacion(self):
         EjemplarFisico.objects.filter(codigo_inventario='EQ-0B').update(estado=EstadoEjemplar.EN_MANTENIMIENTO)
         primero = self.prestar(self.fichas[0]).data['id']
-        self.devolver(primero, observaciones='Volvio sin el cargador')
+        self.devolver(primero, condicion=CondicionEjemplar.BUENO, observaciones='Volvio sin el cargador')
         segundo = self.prestar(self.fichas[0], self.otro).data['id']
         self.devolver(segundo, condicion=CondicionEjemplar.REGULAR, observaciones='Pantalla rayada')
 
@@ -309,7 +336,7 @@ class SeguimientoEjemplarTests(PrestamoTestCase):
 
     def test_observaciones_de_devolucion_tienen_limite(self):
         prestamo_id = self.prestar(self.fichas[0]).data['id']
-        self.assertEqual(self.devolver(prestamo_id, observaciones='x' * 501).status_code, 400)
+        self.assertEqual(self.devolver(prestamo_id, condicion=CondicionEjemplar.BUENO, observaciones='x' * 501).status_code, 400)
 
 
 class CancelarTests(PrestamoTestCase):
@@ -361,7 +388,7 @@ class ReservaTests(PrestamoTestCase):
     def test_una_reserva_no_se_devuelve(self):
         prestamo_id = self.reservar(self.fichas[0]).data['id']
         self.como_admin()
-        self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/').status_code, 400)
+        self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO}).status_code, 400)
 
     def test_caduca_a_las_24_horas(self):
         prestamo_id = self.reservar(self.fichas[0]).data['id']

@@ -109,6 +109,7 @@ def registrar_prestamo(usuario, ficha, ejemplar=None, registrado_por=None):
                 estado=EstadoPrestamo.ACTIVO,
                 fecha_entrega=timezone.now(),
                 fecha_limite=calcular_fecha_limite(usuario),
+                condicion_entrega=elegido.condicion,
                 registrado_por=registrado_por,
             )
             elegido.estado = EstadoEjemplar.PRESTADO
@@ -134,9 +135,10 @@ def entregar_prestamo(pk, admin):
         prestamo.fecha_entrega = timezone.now()
         prestamo.fecha_limite = calcular_fecha_limite(prestamo.usuario)
         prestamo.registrado_por = admin
-        prestamo.save(update_fields=['estado', 'fecha_entrega', 'fecha_limite', 'registrado_por'])
-
         ejemplar = _bloquear_ejemplar(prestamo)
+        prestamo.condicion_entrega = ejemplar.condicion
+        prestamo.save(update_fields=['estado', 'fecha_entrega', 'fecha_limite', 'condicion_entrega', 'registrado_por'])
+
         ejemplar.estado = EstadoEjemplar.PRESTADO
         ejemplar.save(update_fields=['estado'])
         return prestamo
@@ -158,13 +160,12 @@ def _validar_entregado(prestamo):
 
 
 @transaction.atomic
-def registrar_devolucion(pk, condicion=None, observaciones=''):
+def registrar_devolucion(pk, condicion, observaciones=''):
     prestamo = _bloquear(Prestamo.objects.all(), pk)
     _validar_entregado(prestamo)
 
     ejemplar = _bloquear_ejemplar(prestamo)
-    if condicion:
-        ejemplar.condicion = condicion
+    ejemplar.condicion = condicion
 
     prestamo.estado = EstadoPrestamo.DEVUELTO
     prestamo.fecha_devolucion = hoy()

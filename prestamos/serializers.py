@@ -80,7 +80,7 @@ class PrestamoSerializer(serializers.ModelSerializer):
         fields = ['id', 'usuario', 'usuario_email', 'tipo_usuario', 'ejemplar_fisico', 'codigo_inventario',
                   'ficha_recurso_nombre', 'fecha_prestamo', 'fecha_entrega', 'fecha_limite', 'fecha_devolucion',
                   'estado', 'recoger_antes_de',
-                  'con_retraso', 'renovaciones', 'condicion_devolucion', 'observaciones', 'registrado_por_email']
+                  'con_retraso', 'renovaciones', 'condicion_entrega', 'condicion_devolucion', 'observaciones', 'registrado_por_email']
         read_only_fields = fields
 
     @extend_schema_field(OpenApiTypes.DATETIME)
@@ -96,7 +96,7 @@ class PrestamoSerializer(serializers.ModelSerializer):
 
 
 class DevolucionSerializer(serializers.Serializer):
-    condicion = serializers.ChoiceField(choices=CondicionEjemplar.choices, required=False)
+    condicion = serializers.ChoiceField(choices=CondicionEjemplar.choices)
     observaciones = serializers.CharField(required=False, allow_blank=True, max_length=500)
 
 
