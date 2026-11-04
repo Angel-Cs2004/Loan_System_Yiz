@@ -169,7 +169,7 @@ export default function RecursoDetalle() {
                                   <span className={ui.cellSecondary}>Solicitado: {formatearFecha(prestamo.fecha_prestamo)}</span>
                                   <div className={ui.historyConditions}>
                                     <span><strong>Entregado:</strong> {prestamo.fecha_entrega ? formatearFecha(prestamo.fecha_entrega) : 'Aún no entregado'}</span>
-                                    <span><strong>Fecha límite:</strong> {formatearFecha(prestamo.fecha_limite)}</span>
+                                    <span><strong>Fecha de devolución:</strong> {prestamo.fecha_devolucion ? formatearFecha(prestamo.fecha_devolucion) : 'Aún no devuelto'}</span>
                                   </div>
                                   <div className={ui.historyConditions}>
                                     <span><strong>Condición al entregar:</strong> {CONDICIONES[prestamo.condicion_entrega] || 'No registrada'}</span>
@@ -177,9 +177,6 @@ export default function RecursoDetalle() {
                                   </div>
                                   {prestamo.observaciones && (
                                     <p className={ui.conditionText}><strong>Observaciones:</strong> {prestamo.observaciones}</p>
-                                  )}
-                                  {prestamo.fecha_devolucion && (
-                                    <span className={ui.cellSecondary}>Devuelto: {formatearFecha(prestamo.fecha_devolucion)}</span>
                                   )}
                                 </li>
                               ))}
