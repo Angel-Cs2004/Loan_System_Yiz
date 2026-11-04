@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { listCategorias, listRecursosAdmin } from '../../api/catalogo'
+import EjemplarForm from '../../components/admin/EjemplarForm'
 import RecursoConfirm from '../../components/admin/RecursoConfirm'
 import RecursoForm from '../../components/admin/RecursoForm'
 import { EmptyState, Loading } from '../../components/ui/Feedback'
 import Pagination from '../../components/ui/Pagination'
+import FormModal from '../../components/ui/FormModal'
 import StatusBadge from '../../components/ui/StatusBadge'
 import { useToast } from '../../components/ui/Toast'
 import { useDebounced, usePaginatedList } from '../../hooks/useApiList'
@@ -26,6 +28,9 @@ export default function Recursos() {
   const [soloDisponibles, setSoloDisponibles] = useState(false)
   const [categorias, setCategorias] = useState([])
   const [form, setForm] = useState(null)
+  const [ejemplarForm, setEjemplarForm] = useState(null)
+  const [seleccionarFicha, setSeleccionarFicha] = useState(false)
+  const [fichaSeleccionada, setFichaSeleccionada] = useState('')
   const [confirm, setConfirm] = useState(null)
   const busqueda = useDebounced(q)
 
@@ -43,7 +48,14 @@ export default function Recursos() {
           <h2>Fichas de recursos</h2>
           <p>Fichas del catálogo con sus ejemplares físicos.</p>
         </div>
-        <button className={ui.button} onClick={() => setForm({})}>+ Crear ficha de recurso</button>
+        <div className={ui.headingActions}>
+          <button className={ui.button} onClick={() => setForm({})}>+ Crear ficha de recurso</button>
+          <button
+            className={`${ui.button} ${ui.secondary}`}
+            disabled={!lista.results.some(item => item.estado_ficha === 'ACTIVA')}
+            onClick={() => setSeleccionarFicha(true)}
+          >+ Crear ejemplar</button>
+        </div>
       </div>
 
       <section className={`${ui.panel} ${ui.tablePanel}`}>
@@ -142,6 +154,44 @@ export default function Recursos() {
             }
           }}
         />
+      )}
+      {ejemplarForm && (
+        <EjemplarForm
+          fichaId={ejemplarForm.id}
+          onClose={() => setEjemplarForm(null)}
+          onSaved={() => {
+            toast.success('Ejemplar registrado.')
+            setEjemplarForm(null)
+            lista.reload()
+          }}
+        />
+      )}
+      {seleccionarFicha && (
+        <FormModal
+          title="Crear ejemplar"
+          description="Selecciona una ficha activa de esta página para asociar el ejemplar."
+          submitLabel="Continuar"
+          disabled={!fichaSeleccionada}
+          onSubmit={() => {
+            const ficha = lista.results.find(item => String(item.id) === fichaSeleccionada)
+            if (ficha) setEjemplarForm(ficha)
+            setFichaSeleccionada('')
+          }}
+          onClose={() => {
+            setSeleccionarFicha(false)
+            setFichaSeleccionada('')
+          }}
+        >
+          <label className={ui.wide}>
+            Ficha de recurso
+            <select value={fichaSeleccionada} onChange={event => setFichaSeleccionada(event.target.value)} required>
+              <option value="">Selecciona una ficha activa</option>
+              {lista.results.filter(item => item.estado_ficha === 'ACTIVA').map(item => (
+                <option key={item.id} value={item.id}>{item.nombre}</option>
+              ))}
+            </select>
+          </label>
+        </FormModal>
       )}
       {confirm && (
         <RecursoConfirm
