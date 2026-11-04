@@ -36,7 +36,9 @@ export default function EjemplarForm({ fichaId, ejemplarId, onClose, onSaved }) 
   const campo = key => event => setForm({ ...form, [key]: event.target.value })
 
   const guardar = async () => {
-    const datos = bloqueadoPorSistema ? { ...form, estado: undefined } : form
+    const datos = { ...form }
+    if (ejemplarId) delete datos.condicion_de_ingreso
+    if (bloqueadoPorSistema) delete datos.estado
     const { data } = ejemplarId ? await updateEjemplar(ejemplarId, datos) : await createEjemplar(fichaId, datos)
     onSaved(data)
   }
@@ -83,10 +85,12 @@ export default function EjemplarForm({ fichaId, ejemplarId, onClose, onSaved }) 
               <span className={ui.hint}>Un ejemplar dañado no puede quedar disponible.</span>
             )}
           </label>
-          <label className={ui.wide}>
-            Condición de ingreso
-            <textarea value={form.condicion_de_ingreso} onChange={campo('condicion_de_ingreso')} rows={3} />
-          </label>
+          {!ejemplarId && (
+            <label className={ui.wide}>
+              Condición de ingreso
+              <textarea value={form.condicion_de_ingreso} onChange={campo('condicion_de_ingreso')} rows={3} />
+            </label>
+          )}
         </>
       )}
     </FormModal>
