@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { apiError } from '../../api/client'
 import { deleteEjemplar, getRecursoAdmin, listEjemplares } from '../../api/catalogo'
@@ -29,6 +29,9 @@ export default function RecursoDetalle() {
   const [confirm, setConfirm] = useState(null)
   const [ejemplarForm, setEjemplarForm] = useState(null)
   const [borrarEjemplar, setBorrarEjemplar] = useState(null)
+  const [ejemplarHistorial, setEjemplarHistorial] = useState(null)
+  const [cargandoHistorial, setCargandoHistorial] = useState(false)
+  const [errorHistorialEjemplar, setErrorHistorialEjemplar] = useState('')
 
   const filtroHistorial = useCallback(params => listPrestamos({ ...params, ficha_recurso: id }), [id])
   const historial = usePaginatedList(filtroHistorial)
@@ -47,6 +50,25 @@ export default function RecursoDetalle() {
   const refrescar = () => {
     recurso.reload()
     cargarEjemplares()
+  }
+
+  const verHistorialEjemplar = async ejemplar => {
+    if (ejemplarHistorial?.codigo === ejemplar.codigo_inventario) {
+      setEjemplarHistorial(null)
+      return
+    }
+    setCargandoHistorial(true)
+    setErrorHistorialEjemplar('')
+    setEjemplarHistorial({ codigo: ejemplar.codigo_inventario, prestamos: [] })
+    try {
+      const respuesta = await listPrestamos({ codigo_inventario: ejemplar.codigo_inventario, page_size: 100 })
+      const datos = Array.isArray(respuesta.data) ? respuesta.data : respuesta.data?.results ?? []
+      setEjemplarHistorial({ codigo: ejemplar.codigo_inventario, prestamos: datos.slice(0, 5) })
+    } catch (err) {
+      setErrorHistorialEjemplar(apiError(err))
+    } finally {
+      setCargandoHistorial(false)
+    }
   }
 
   if (recurso.loading) return <main className={ui.page}><Loading /></main>
@@ -112,18 +134,61 @@ export default function RecursoDetalle() {
               </thead>
               <tbody>
                 {ejemplares.map(ejemplar => (
-                  <tr key={ejemplar.id}>
-                    <td><strong>{ejemplar.codigo_inventario}</strong></td>
-                    <td><StatusBadge value={ejemplar.estado} labels={ESTADOS_EJEMPLAR} /></td>
-                    <td><StatusBadge value={ejemplar.condicion} labels={CONDICIONES} /></td>
-                    <td><span className={ui.cellSecondary}>{ejemplar.condicion_de_ingreso || '—'}</span></td>
-                    <td>
-                      <div className={ui.rowActions}>
-                        <button className={ui.link} onClick={() => setEjemplarForm({ id: ejemplar.id })}>Editar</button>
-                        <button className={`${ui.link} ${ui.danger}`} onClick={() => setBorrarEjemplar(ejemplar)}>Eliminar</button>
-                      </div>
-                    </td>
-                  </tr>
+                  <Fragment key={ejemplar.id}>
+                    <tr key={ejemplar.id}>
+                      <td><strong>{ejemplar.codigo_inventario}</strong></td>
+                      <td><StatusBadge value={ejemplar.estado} labels={ESTADOS_EJEMPLAR} /></td>
+                      <td><StatusBadge value={ejemplar.condicion} labels={CONDICIONES} /></td>
+                      <td><span className={ui.conditionText}>{ejemplar.condicion_de_ingreso || '—'}</span></td>
+                      <td>
+                        <div className={ui.rowActions}>
+                          <button className={ui.link} onClick={() => setEjemplarForm({ id: ejemplar.id })}>Editar</button>
+                          <button className={ui.link} onClick={() => verHistorialEjemplar(ejemplar)}>
+                            {ejemplarHistorial?.codigo === ejemplar.codigo_inventario ? 'Cerrar historial' : 'Ver historial'}
+                          </button>
+                          <button className={`${ui.link} ${ui.danger}`} onClick={() => setBorrarEjemplar(ejemplar)}>Eliminar</button>
+                        </div>
+                      </td>
+                    </tr>
+                    {ejemplarHistorial?.codigo === ejemplar.codigo_inventario && (
+                      <tr key={`${ejemplar.id}-historial`}>
+                        <td colSpan={5}>
+                          <strong>Últimos préstamos de {ejemplar.codigo_inventario}</strong>
+                          {cargandoHistorial ? <p>Cargando historial…</p> : errorHistorialEjemplar ? (
+                            <p className={ui.error}>{errorHistorialEjemplar}</p>
+                          ) : !ejemplarHistorial.prestamos.length ? (
+                            <p>Este ejemplar todavía no tiene préstamos.</p>
+                          ) : (
+                            <ul>
+                              {ejemplarHistorial.prestamos.map(prestamo => (
+                                <li key={prestamo.id} className={ui.historyLoan}>
+                                  <div className={ui.historyLoanHeading}>
+                                    <Link className={ui.rowLink} to={`/admin/prestamos/${prestamo.id}`}>{prestamo.usuario_email}</Link>
+                                    <StatusBadge value={prestamo.estado} labels={ESTADOS_PRESTAMO} />
+                                  </div>
+                                  <span className={ui.cellSecondary}>Solicitado: {formatearFecha(prestamo.fecha_prestamo)}</span>
+                                  <div className={ui.historyConditions}>
+                                    <span><strong>Entregado:</strong> {prestamo.fecha_entrega ? formatearFecha(prestamo.fecha_entrega) : 'Aún no entregado'}</span>
+                                    <span><strong>Fecha límite:</strong> {formatearFecha(prestamo.fecha_limite)}</span>
+                                  </div>
+                                  <div className={ui.historyConditions}>
+                                    <span><strong>Condición al entregar:</strong> {CONDICIONES[prestamo.condicion_entrega] || 'No registrada'}</span>
+                                    <span><strong>Condición al devolver:</strong> {CONDICIONES[prestamo.condicion_devolucion] || 'Aún no registrada'}</span>
+                                  </div>
+                                  {prestamo.observaciones && (
+                                    <p className={ui.conditionText}><strong>Observaciones:</strong> {prestamo.observaciones}</p>
+                                  )}
+                                  {prestamo.fecha_devolucion && (
+                                    <span className={ui.cellSecondary}>Devuelto: {formatearFecha(prestamo.fecha_devolucion)}</span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

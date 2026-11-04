@@ -385,6 +385,34 @@ a.stat:hover {
   text-overflow: ellipsis;
   white-space: nowrap
 }
+.conditionText {
+  display: block;
+  min-width: 220px;
+  max-width: 380px;
+  color: var(--color-subtle-text);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere
+}
+.historyLoan {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border)
+}
+.historyLoanHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px
+}
+.historyConditions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 8px;
+  color: var(--color-text-secondary);
+  font-size: 12px
+}
 @media(max-width:650px) {
   .page {
     padding: 25px var(--space-7) 48px
