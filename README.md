@@ -344,6 +344,13 @@ ACTIVO o VENCIDO ──► DEVUELTO (devolución) o PERDIDO (pérdida)
 - Los días se cuentan desde la entrega, no desde la reserva.
 - Una renovación por préstamo, solo si no está vencido.
 
+**Sanciones por morosidad:** devolver tarde suspende los préstamos de forma automática y
+proporcional al retraso (por defecto 2 días de suspensión por cada día de atraso), y perder un
+recurso suma una suspensión fija (30 días por defecto). La severidad se configura por tipo de
+usuario en su política (`dias_suspension_por_dia_retraso` y `dias_suspension_por_perdida`). El
+usuario suspendido puede entrar y ver sus préstamos, pero no pedir nuevos hasta la fecha
+`suspendido_hasta`; el administrador puede levantar la suspensión.
+
 **Catálogo:** cada recurso (ficha) tiene unidades físicas (ejemplares) con estado `DISPONIBLE`, `RESERVADO`, `PRESTADO`, `EN_MANTENIMIENTO` o `DADO_DE_BAJA`. `RESERVADO` y `PRESTADO` solo los maneja el sistema. Un ejemplar que vuelve dañado pasa a mantenimiento. Lo que tiene historial no se borra: se da de baja.
 
 **Usuarios:** la baja (`INACTIVO`) exige que no tenga recursos sin devolver. La suspensión (`SUSPENDIDO`) sí se permite aunque deba algo: pierde el acceso y no puede pedir más, pero sus préstamos se siguen devolviendo en el mostrador. En ambos casos sus reservas sin recoger se cancelan.

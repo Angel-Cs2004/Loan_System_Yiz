@@ -15,7 +15,8 @@ from .services import HORAS_PARA_RECOGER
 class PoliticaPrestamoSerializer(serializers.ModelSerializer):
     class Meta:
         model = PoliticaPrestamo
-        fields = ['id', 'tipo_usuario', 'dias_maximo_prestamo', 'max_prestamos_simultaneos']
+        fields = ['id', 'tipo_usuario', 'dias_maximo_prestamo', 'max_prestamos_simultaneos',
+                  'dias_suspension_por_dia_retraso', 'dias_suspension_por_perdida']
         read_only_fields = ['id', 'tipo_usuario']
 
 

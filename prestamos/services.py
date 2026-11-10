@@ -19,6 +19,9 @@ MAX_RENOVACIONES = 1
 
 HORAS_PARA_RECOGER = 24
 
+FACTOR_SUSPENSION_POR_DEFECTO = 2
+DIAS_SUSPENSION_PERDIDA_POR_DEFECTO = 30
+
 
 def hoy():
     return timezone.localdate()
@@ -65,7 +68,19 @@ def actualizar_estados():
     return marcar_vencidos(), caducar_reservas()
 
 
+def aplicar_suspension(usuario, dias):
+    if dias <= 0:
+        return
+    # Si ya estaba suspendido, el castigo se acumula al final del actual; si no, parte de hoy.
+    inicio = usuario.suspendido_hasta if (usuario.suspendido_hasta and usuario.suspendido_hasta > hoy()) else hoy()
+    usuario.suspendido_hasta = inicio + timedelta(days=dias)
+    usuario.save(update_fields=['suspendido_hasta'])
+
+
 def validar_puede_prestar(usuario, ficha):
+    if usuario.suspendido_hasta and usuario.suspendido_hasta >= hoy():
+        raise ValidationError(f'Estas suspendido de prestamos hasta el {usuario.suspendido_hasta}.')
+
     pendientes = Prestamo.objects.filter(usuario=usuario, estado__in=ESTADOS_PENDIENTES)
 
     if pendientes.filter(estado=EstadoPrestamo.VENCIDO).exists():
@@ -173,6 +188,12 @@ def registrar_devolucion(pk, condicion, observaciones=''):
     prestamo.observaciones = observaciones
     prestamo.save(update_fields=['estado', 'fecha_devolucion', 'condicion_devolucion', 'observaciones'])
 
+    if prestamo.fecha_devolucion > prestamo.fecha_limite:
+        dias_retraso = (prestamo.fecha_devolucion - prestamo.fecha_limite).days
+        politica = politica_de(prestamo.usuario)
+        factor = politica.dias_suspension_por_dia_retraso if politica else FACTOR_SUSPENSION_POR_DEFECTO
+        aplicar_suspension(prestamo.usuario, dias_retraso * factor)
+
     ejemplar.estado = estado_tras_devolucion(ejemplar.condicion)
     ejemplar.save(update_fields=['condicion', 'estado'])
     return prestamo
@@ -186,6 +207,10 @@ def marcar_perdido(pk, observaciones=''):
     prestamo.estado = EstadoPrestamo.PERDIDO
     prestamo.observaciones = observaciones
     prestamo.save(update_fields=['estado', 'observaciones'])
+
+    politica = politica_de(prestamo.usuario)
+    dias = politica.dias_suspension_por_perdida if politica else DIAS_SUSPENSION_PERDIDA_POR_DEFECTO
+    aplicar_suspension(prestamo.usuario, dias)
 
     ejemplar = _bloquear_ejemplar(prestamo)
     ejemplar.estado = EstadoEjemplar.DADO_DE_BAJA

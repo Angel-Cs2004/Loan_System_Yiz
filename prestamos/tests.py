@@ -270,7 +270,7 @@ class PerdidoTests(PrestamoTestCase):
         self.assertEqual(ejemplar.estado, EstadoEjemplar.DADO_DE_BAJA)
         self.assertEqual(Prestamo.objects.get(pk=prestamo_id).observaciones, 'Se lo robaron')
         self.assertEqual(self.client.get(f'/catalogo/recursos/{self.fichas[0].pk}/').data['total_ejemplares'], 1)
-        self.assertEqual(self.prestar(self.fichas[0]).status_code, 200)
+        self.assertEqual(self.prestar(self.fichas[0], self.otro).status_code, 200)
 
     def test_un_perdido_no_se_devuelve_ni_se_pierde_dos_veces(self):
         prestamo_id = self.prestar(self.fichas[0]).data['id']
@@ -278,6 +278,54 @@ class PerdidoTests(PrestamoTestCase):
         self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/perdido/')
         self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO}).status_code, 400)
         self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/perdido/').status_code, 400)
+
+
+class SancionesTests(PrestamoTestCase):
+    def test_devolucion_tardia_suspende(self):
+        prestamo_id = self.prestar(self.fichas[0]).data['id']
+        Prestamo.objects.filter(pk=prestamo_id).update(fecha_limite=hoy() - timedelta(days=3))
+        self.como_admin()
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO})
+        self.alumno.refresh_from_db()
+        self.assertEqual(self.alumno.suspendido_hasta, hoy() + timedelta(days=6))  # 3 dias x factor 2
+
+    def test_devolucion_a_tiempo_no_suspende(self):
+        prestamo_id = self.prestar(self.fichas[0]).data['id']
+        self.como_admin()
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO})
+        self.alumno.refresh_from_db()
+        self.assertIsNone(self.alumno.suspendido_hasta)
+
+    def test_perdida_suspende_30_dias(self):
+        prestamo_id = self.prestar(self.fichas[0]).data['id']
+        self.como_admin()
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/perdido/')
+        self.alumno.refresh_from_db()
+        self.assertEqual(self.alumno.suspendido_hasta, hoy() + timedelta(days=30))
+
+    def test_la_suspension_se_acumula(self):
+        prestamo_id = self.prestar(self.fichas[0]).data['id']
+        self.alumno.suspendido_hasta = hoy() + timedelta(days=10)
+        self.alumno.save(update_fields=['suspendido_hasta'])
+        self.como_admin()
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/perdido/')
+        self.alumno.refresh_from_db()
+        self.assertEqual(self.alumno.suspendido_hasta, hoy() + timedelta(days=40))  # 10 + 30
+
+    def test_suspendido_no_puede_pedir(self):
+        self.alumno.suspendido_hasta = hoy() + timedelta(days=5)
+        self.alumno.save(update_fields=['suspendido_hasta'])
+        self.assertEqual(self.reservar(self.fichas[0]).status_code, 400)
+
+    def test_el_admin_levanta_la_suspension(self):
+        self.alumno.suspendido_hasta = hoy() + timedelta(days=5)
+        self.alumno.save(update_fields=['suspendido_hasta'])
+        self.como_admin()
+        respuesta = self.client.patch(f'/users/admin/usuarios/{self.alumno.pk}/', {'suspendido_hasta': None}, format='json')
+        self.assertEqual(respuesta.status_code, 200)
+        self.alumno.refresh_from_db()
+        self.assertIsNone(self.alumno.suspendido_hasta)
+        self.assertEqual(self.reservar(self.fichas[0]).status_code, 201)
 
 
 class SeguimientoEjemplarTests(PrestamoTestCase):

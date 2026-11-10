@@ -84,15 +84,15 @@ class CambiarPasswordSerializer(serializers.Serializer):
 class PerfilSerializer(serializers.ModelSerializer):
     class Meta:
         model = Usuario
-        fields = ['email', 'first_name', 'last_name', 'dni', 'cui', 'tipo_usuario', 'status']
-        read_only_fields = ['email', 'dni', 'cui', 'tipo_usuario', 'status']
+        fields = ['email', 'first_name', 'last_name', 'dni', 'cui', 'tipo_usuario', 'status', 'suspendido_hasta']
+        read_only_fields = ['email', 'dni', 'cui', 'tipo_usuario', 'status', 'suspendido_hasta']
 
 
 class UsuarioAdminSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only = True, required = False)
     class Meta:
         model = Usuario
-        fields = ['id', 'email', 'first_name', 'last_name', 'dni', 'cui', 'tipo_usuario', 'status', 'password']
+        fields = ['id', 'email', 'first_name', 'last_name', 'dni', 'cui', 'tipo_usuario', 'status', 'suspendido_hasta', 'password']
         read_only_fields = ['id']
 
     def validate_email(self, email):
@@ -105,6 +105,7 @@ class UsuarioAdminSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'password': 'Este campo es obligatorio.'})
 
         request = self.context.get('request')
+
         if instancia is not None and request is not None and instancia.pk == request.user.pk:
             for campo in ('tipo_usuario', 'status'):
                 if campo in attrs and attrs[campo] != getattr(instancia, campo):
@@ -115,6 +116,7 @@ class UsuarioAdminSerializer(serializers.ModelSerializer):
 
         tipo = attrs.get('tipo_usuario', getattr(instancia, 'tipo_usuario', None))
         cui = attrs.get('cui', getattr(instancia, 'cui', None))
+
         if 'cui' in attrs and not cui:
             attrs['cui'] = None
         if tipo == TipoUsuario.STUDENT and not cui:

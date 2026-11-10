@@ -27,6 +27,8 @@ class PoliticaPrestamo(models.Model):
     tipo_usuario = models.CharField(max_length=25, unique=True, choices=TipoUsuario.choices)
     dias_maximo_prestamo = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     max_prestamos_simultaneos = models.PositiveIntegerField(default=3, validators=[MinValueValidator(1)])
+    dias_suspension_por_dia_retraso = models.PositiveIntegerField(default=2)
+    dias_suspension_por_perdida = models.PositiveIntegerField(default=30)
 
     class Meta:
         db_table = 'politicas_prestamo'
