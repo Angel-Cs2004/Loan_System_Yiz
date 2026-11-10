@@ -149,12 +149,30 @@ python manage.py createsuperuser
 
 `createsuperuser` ya lo crea con `tipo_usuario = ADMINISTRATOR`. Los permisos de administrador de la API dependen de ese campo, no de `is_superuser`.
 
-### Tareas programadas (opcional)
+### Tareas programadas (Celery)
 
-La API actualiza sola los préstamos vencidos y las reservas no recogidas cada vez que alguien consulta o reserva. Para tener la base al día aunque nadie entre al sistema, se puede programar en cron:
+Los préstamos vencidos y las reservas no recogidas se actualizan de forma automática
+mediante **Celery**, sin depender de que alguien consulte el sistema. La tarea
+`prestamos.actualizar_estados` corre **cada hora** (ver `CELERY_BEAT_SCHEDULE` en
+`settings.py`).
+
+Requiere **Redis** como broker (en Arch: `sudo pacman -S redis && sudo systemctl enable --now redis`).
+Configura `CELERY_BROKER_URL` en el `.env` (por defecto `redis://localhost:6379/0`).
+
+En desarrollo se levantan dos procesos aparte del servidor Django:
 
 ```bash
-5 0 * * * cd /ruta/al/proyecto && env/bin/python manage.py marcar_vencidos
+# Worker: ejecuta las tareas
+celery -A prestamos_sistema worker --loglevel=info
+
+# Beat: el "reloj" que encola la tarea cada hora
+celery -A prestamos_sistema beat --loglevel=info
+```
+
+El comando manual sigue disponible para forzar la actualización en cualquier momento:
+
+```bash
+python manage.py marcar_vencidos
 ```
 
 ### Pruebas

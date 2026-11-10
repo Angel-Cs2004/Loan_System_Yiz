@@ -172,3 +172,21 @@ PASSWORD_HASHERS = [
     'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
     'django.contrib.auth.hashers.ScryptPasswordHasher',
 ]
+
+# --- Celery ---
+# Broker (cola de tareas) y backend de resultados, ambos sobre Redis.
+CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 5 * 60
+
+# Tareas programadas (Celery Beat). 'crontab(minute=0)' = al minuto 0 de cada hora.
+from celery.schedules import crontab  # noqa: E402
+
+CELERY_BEAT_SCHEDULE = {
+    'actualizar-estados-cada-hora': {
+        'task': 'prestamos.actualizar_estados',
+        'schedule': crontab(minute=0),
+    },
+}

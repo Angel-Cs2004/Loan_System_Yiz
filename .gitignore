@@ -11,6 +11,10 @@ venv/
 db.sqlite3
 *.log
 
+# Celery (archivos generados por beat)
+celerybeat-schedule*
+celerybeat.pid
+
 # Variables de entorno / secretos
 .env
 .env.*
