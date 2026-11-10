@@ -220,6 +220,29 @@ una caché compartida en Redis (`REDIS_CACHE_URL`).
 python manage.py test
 ```
 
+## Levantar todo con Docker
+
+En lugar de instalar Python, PostgreSQL y Redis a mano, se puede levantar el backend
+completo (API, worker, beat, base de datos y Redis) con un solo comando. Requiere
+**Docker** y el archivo `.env` (copiado de `.env.example`).
+
+```bash
+docker compose up --build
+```
+
+Esto construye la imagen, aplica las migraciones, recolecta los estáticos y arranca los
+cinco servicios. La API queda en <http://localhost:8000> (admin en `/admin/`, docs en
+`/api/docs/`). Las migraciones y los estáticos se ejecutan solos al arrancar el servicio
+`web`; el worker y el beat de Celery corren en sus propios contenedores. Para crear el
+primer administrador, con los contenedores en marcha:
+
+```bash
+docker compose exec web python manage.py createsuperuser
+```
+
+El método con entorno virtual (arriba) sigue siendo válido; Docker es una alternativa, no
+lo reemplaza.
+
 ## Frontend
 
 La interfaz web está en `frontend/crud_prestamos/`. Necesita Node.js 20 o superior.

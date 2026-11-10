@@ -1,0 +1,59 @@
+# Levanta todo el backend con un comando: docker compose up --build
+# Servicios: web (API), worker y beat (Celery), db (PostgreSQL), redis (broker + cache).
+# Lee las variables del archivo .env; aqui solo se sobrescriben las que apuntan a los
+# servicios internos (db y redis) y se desactiva el redirect a HTTPS para probar en local.
+
+x-backend: &backend
+  build: .
+  env_file: .env
+  environment:
+    DEBUG: "True"
+    DB_HOST: db
+    CELERY_BROKER_URL: redis://redis:6379/0
+    CELERY_RESULT_BACKEND: redis://redis:6379/0
+    REDIS_CACHE_URL: redis://redis:6379/1
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    <<: *backend
+    command: sh -c "python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn prestamos_sistema.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+    ports:
+      - "8000:8000"
+
+  worker:
+    <<: *backend
+    command: celery -A prestamos_sistema worker --loglevel=info
+
+  beat:
+    <<: *backend
+    command: celery -A prestamos_sistema beat --loglevel=info
+
+volumes:
+  postgres_data:

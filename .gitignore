@@ -16,6 +16,9 @@ logs/
 celerybeat-schedule*
 celerybeat.pid
 
+# Archivos estaticos recolectados (collectstatic)
+staticfiles/
+
 # Variables de entorno / secretos
 .env
 .env.*
