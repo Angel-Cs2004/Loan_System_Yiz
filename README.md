@@ -175,6 +175,18 @@ El comando manual sigue disponible para forzar la actualización en cualquier mo
 python manage.py marcar_vencidos
 ```
 
+### Logging y monitoreo de errores
+
+Los logs se escriben en consola y en un archivo rotatorio `logs/django.log`
+(5 MB por archivo, 5 copias). El nivel se controla con `LOG_LEVEL` en el `.env`
+(por defecto `DEBUG` en desarrollo e `INFO` en producción). La carpeta `logs/`
+no se versiona.
+
+Para monitoreo de errores en tiempo real se integra **Sentry** (opcional): define
+`SENTRY_DSN` en el `.env` con el DSN de tu proyecto en [sentry.io](https://sentry.io)
+para activarlo. Sin DSN, queda desactivado. No se envían datos personales
+(`send_default_pii=False`).
+
 ### Pruebas
 
 ```bash

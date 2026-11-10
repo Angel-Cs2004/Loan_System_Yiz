@@ -190,3 +190,72 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(minute=0),
     },
 }
+
+# --- Logging ---
+# Los logs van a consola (desarrollo) y a un archivo rotatorio (produccion).
+# El nivel es mas verboso en desarrollo (DEBUG) y prudente en produccion (INFO).
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
+
+LOG_LEVEL = config('LOG_LEVEL', default='DEBUG' if DEBUG else 'INFO')
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{asctime} [{levelname}] {name}: {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '[{levelname}] {name}: {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'django.log',
+            'maxBytes': 5 * 1024 * 1024,  # 5 MB por archivo
+            'backupCount': 5,            # conserva 5 archivos antiguos
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
+    },
+    'root': {
+        'handlers': ['console', 'file'],
+        'level': LOG_LEVEL,
+    },
+    'loggers': {
+        # Errores de peticiones (500) y del framework.
+        'django.request': {
+            'handlers': ['console', 'file'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        # Nuestras apps: lo que registremos con logging en el codigo de negocio.
+        'users': {'handlers': ['console', 'file'], 'level': LOG_LEVEL, 'propagate': False},
+        'catalogo': {'handlers': ['console', 'file'], 'level': LOG_LEVEL, 'propagate': False},
+        'prestamos': {'handlers': ['console', 'file'], 'level': LOG_LEVEL, 'propagate': False},
+    },
+}
+
+# --- Sentry (monitoreo de errores, opcional) ---
+# Se activa solo si defines SENTRY_DSN en el .env. Sin DSN, no hace nada.
+SENTRY_DSN = config('SENTRY_DSN', default='')
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        traces_sample_rate=config('SENTRY_TRACES_SAMPLE_RATE', default=0.0, cast=float),
+        environment=config('SENTRY_ENVIRONMENT', default='development'),
+        # No enviar datos personales (DNI, email, etc.) a un servicio externo.
+        send_default_pii=False,
+    )
