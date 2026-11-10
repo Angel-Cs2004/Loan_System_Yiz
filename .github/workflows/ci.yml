@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main, integracion]
+  pull_request:
+    branches: [main, integracion]
+
+jobs:
+  test:
+    name: Tests y chequeo de despliegue
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: prestamos_db
+          POSTGRES_USER: prestamos_user
+          POSTGRES_PASSWORD: prestamos_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      SECRET_KEY: clave-solo-para-ci-no-sensible
+      DEBUG: 'True'
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      DB_NAME: prestamos_db
+      DB_USER: prestamos_user
+      DB_PASSWORD: prestamos_pass
+      DB_HOST: localhost
+      DB_PORT: '5432'
+
+    steps:
+      - name: Descargar el codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Correr los tests
+        run: python manage.py test --verbosity=2
+
+      - name: Verificar la configuracion de produccion
+        env:
+          DEBUG: 'False'
+          SECRET_KEY: clave-larga-y-aleatoria-solo-para-el-check-de-despliegue-0123456789
+          ALLOWED_HOSTS: example.com
+          EMAIL_BACKEND: smtp
+          EMAIL_HOST: smtp.example.com
+          EMAIL_HOST_USER: ci@example.com
+          EMAIL_HOST_PASSWORD: dummy
+        run: python manage.py check --deploy
