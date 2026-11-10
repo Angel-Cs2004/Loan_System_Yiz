@@ -18,7 +18,6 @@ from .serializers import (
     PrestamoSerializer,
 )
 from .services import (
-    actualizar_estados,
     cancelar_prestamo,
     entregar_prestamo,
     marcar_perdido,
@@ -74,7 +73,6 @@ class MisPrestamosView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        actualizar_estados()
         return prestamos_con_detalle().filter(usuario=self.request.user)
 
 
@@ -137,7 +135,6 @@ class PrestamoListView(generics.ListAPIView):
         return responder(prestamo, status.HTTP_201_CREATED)
 
     def get_queryset(self):
-        actualizar_estados()
         queryset = prestamos_con_detalle()
         estado = self.request.query_params.get("estado")
         if estado:
@@ -172,7 +169,6 @@ class PrestamoDetailView(generics.RetrieveAPIView):
     permission_classes = [EsAdministrador]
 
     def get_queryset(self):
-        actualizar_estados()
         return prestamos_con_detalle()
 
 

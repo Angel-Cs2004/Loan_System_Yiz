@@ -106,9 +106,10 @@ class PoliticaTests(PrestamoTestCase):
 
 
 class VencidosTests(PrestamoTestCase):
-    def test_se_marca_vencido_al_listar(self):
+    def test_vencido_aparece_en_el_listado_tras_la_tarea(self):
         prestamo_id = self.prestar(self.fichas[0]).data['id']
         self.vencer(prestamo_id)
+        call_command('marcar_vencidos', stdout=StringIO())
         resultado = self.client.get('/prestamos/mis-reservas/').data['results'][0]
         self.assertEqual(resultado['estado'], EstadoPrestamo.VENCIDO)
         self.assertTrue(resultado['con_retraso'])
@@ -117,6 +118,7 @@ class VencidosTests(PrestamoTestCase):
         prestamo_id = self.prestar(self.fichas[0]).data['id']
         self.prestar(self.fichas[1])
         self.vencer(prestamo_id)
+        call_command('marcar_vencidos', stdout=StringIO())
         self.como_admin()
         respuesta = self.client.get('/prestamos/admin/reservas/?estado=VENCIDO')
         self.assertEqual([p['id'] for p in respuesta.data['results']], [prestamo_id])
@@ -393,6 +395,7 @@ class ReservaTests(PrestamoTestCase):
     def test_caduca_a_las_24_horas(self):
         prestamo_id = self.reservar(self.fichas[0]).data['id']
         Prestamo.objects.filter(pk=prestamo_id).update(fecha_prestamo=timezone.now() - timedelta(hours=25))
+        call_command('marcar_vencidos', stdout=StringIO())
         self.assertEqual(self.client.get('/prestamos/mis-reservas/').data['results'][0]['estado'], EstadoPrestamo.CANCELADO)
         self.assertEqual(EjemplarFisico.objects.get(codigo_inventario='EQ-0A').estado, EstadoEjemplar.DISPONIBLE)
         self.como_admin()
