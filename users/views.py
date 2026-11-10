@@ -58,7 +58,7 @@ class MiTokenObtainPairView(TokenObtainPairView):
     throttle_scope = 'login'
 
 
-class PerfilView(generics.RetrieveUpdateAPIView): # es bueno poner la contra aqui?
+class PerfilView(generics.RetrieveUpdateAPIView):
     serializer_class = PerfilSerializer
     permission_classes = [IsAuthenticated]
     http_method_names = ['get', 'patch']
