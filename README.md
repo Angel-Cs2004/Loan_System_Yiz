@@ -175,6 +175,18 @@ El comando manual sigue disponible para forzar la actualización en cualquier mo
 python manage.py marcar_vencidos
 ```
 
+### Correos
+
+Los correos (por ahora, el enlace de "olvidé mi contraseña") se envían en segundo
+plano mediante Celery: la petición del usuario no espera al envío, y si el servidor
+de correo falla se reintenta y se registra en el log. Requiere el worker de Celery
+corriendo (ver arriba).
+
+Por defecto (`EMAIL_BACKEND=console`) los correos se imprimen en la terminal. Para
+enviarlos de verdad con Gmail, en el `.env`: `EMAIL_BACKEND=smtp`, `EMAIL_HOST_USER`
+tu dirección de Gmail y `EMAIL_HOST_PASSWORD` una **contraseña de aplicación** de
+Google (requiere verificación en 2 pasos; no sirve la contraseña normal de la cuenta).
+
 ### Logging y monitoreo de errores
 
 Los logs se escriben en consola y en un archivo rotatorio `logs/django.log`

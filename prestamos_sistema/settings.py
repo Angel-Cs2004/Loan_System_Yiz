@@ -213,6 +213,11 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 5 * 60
 
+# En tests, las tareas se ejecutan al instante y en el mismo proceso (sin worker ni
+# Redis), para poder verificar sus efectos (p. ej. el correo generado en mail.outbox).
+CELERY_TASK_ALWAYS_EAGER = TESTING
+CELERY_TASK_EAGER_PROPAGATES = TESTING
+
 # Tareas programadas (Celery Beat). 'crontab(minute=0)' = al minuto 0 de cada hora.
 from celery.schedules import crontab  # noqa: E402
 
