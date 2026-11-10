@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 
-from catalogo.models import CondicionEjemplar, EjemplarFisico
+from catalogo.models import CondicionEjemplar, EjemplarFisico, FichaRecurso
 from users.models import TipoUsuario
 
 
@@ -52,6 +52,34 @@ class Feriado(models.Model):
 
     def __str__(self):
         return f'{self.fecha} - {self.descripcion}'
+
+
+class EstadoCola(models.TextChoices):
+    ESPERANDO = 'ESPERANDO', 'Esperando'
+    ATENDIDO = 'ATENDIDO', 'Atendido'
+    CANCELADO = 'CANCELADO', 'Cancelado'
+
+
+class ColaReserva(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='colas')
+    ficha_recurso = models.ForeignKey(FichaRecurso, on_delete=models.CASCADE, related_name='cola')
+    fecha_solicitud = models.DateTimeField(auto_now_add=True)
+    estado = models.CharField(max_length=20, choices=EstadoCola.choices, default=EstadoCola.ESPERANDO)
+
+    class Meta:
+        db_table = 'cola_reservas'
+        ordering = ['fecha_solicitud']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['usuario', 'ficha_recurso'],
+                condition=models.Q(estado=EstadoCola.ESPERANDO),
+                name='unica_espera_por_usuario_y_ficha',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.usuario} espera {self.ficha_recurso} ({self.estado})'
 
 
 class Prestamo(models.Model):

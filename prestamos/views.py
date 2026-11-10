@@ -11,8 +11,10 @@ from users.permissions import EsAdministrador
 from auditoria.models import AccionAuditoria
 from auditoria.services import registrar
 
-from .models import EstadoPrestamo, Feriado, PoliticaPrestamo, Prestamo
+from .models import ColaReserva, EstadoCola, EstadoPrestamo, Feriado, PoliticaPrestamo, Prestamo
 from .serializers import (
+    ColaCreateSerializer,
+    ColaReservaSerializer,
     DevolucionSerializer,
     FeriadoSerializer,
     PerdidaSerializer,
@@ -28,6 +30,7 @@ from .services import (
     registrar_devolucion,
     registrar_prestamo,
     renovar_prestamo,
+    unirse_a_cola,
 )
 
 
@@ -102,6 +105,63 @@ class MiPrestamoCancelarView(APIView):
     @extend_schema(request=None, responses=PrestamoSerializer)
     def post(self, request, pk):
         return responder(cancelar_prestamo(pk, request.user))
+
+
+class ColaListCreateView(generics.ListCreateAPIView):
+    serializer_class = ColaReservaSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return (
+            ColaReserva.objects.filter(usuario=self.request.user, estado=EstadoCola.ESPERANDO)
+            .select_related('ficha_recurso')
+        )
+
+    @extend_schema(request=ColaCreateSerializer, responses={201: ColaReservaSerializer})
+    def create(self, request, *args, **kwargs):
+        serializer = ColaCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        entrada = unirse_a_cola(request.user, serializer.validated_data['ficha_recurso'])
+        return Response(ColaReservaSerializer(entrada).data, status=status.HTTP_201_CREATED)
+
+
+class ColaSalirView(generics.DestroyAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return ColaReserva.objects.filter(usuario=self.request.user, estado=EstadoCola.ESPERANDO)
+
+    def perform_destroy(self, entrada):
+        entrada.estado = EstadoCola.CANCELADO
+        entrada.save(update_fields=['estado'])
+
+
+class ColaAdminListView(generics.ListAPIView):
+    serializer_class = ColaReservaSerializer
+    permission_classes = [EsAdministrador]
+
+    @extend_schema(parameters=[
+        OpenApiParameter('ficha_recurso', str, description='UUID del recurso'),
+        OpenApiParameter('estado', str, description=', '.join(EstadoCola.values)),
+    ])
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        queryset = ColaReserva.objects.select_related('usuario', 'ficha_recurso')
+        ficha = self.request.query_params.get('ficha_recurso')
+        if ficha:
+            try:
+                ficha = uuid.UUID(ficha)
+            except ValueError:
+                raise ValidationError({'ficha_recurso': 'Debe ser un UUID valido.'})
+            queryset = queryset.filter(ficha_recurso_id=ficha)
+        estado = self.request.query_params.get('estado')
+        if estado:
+            if estado not in EstadoCola.values:
+                raise ValidationError({'estado': f'Debe ser uno de: {", ".join(EstadoCola.values)}.'})
+            queryset = queryset.filter(estado=estado)
+        return queryset
 
 
 def validar_filtro_estado(estado):

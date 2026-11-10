@@ -295,6 +295,9 @@ La referencia completa para el frontend (cuerpos, respuestas y errores de cada e
 | POST | `/prestamos/reservar/` | Autenticado | Reservar un recurso (queda `RESERVADO`, hay hasta el siguiente día hábil para recogerlo) |
 | GET | `/prestamos/mis-reservas/` | Autenticado | Ver mis préstamos y reservas |
 | POST | `/prestamos/mis-reservas/{id}/cancelar/` | Autenticado | Cancelar mi reserva antes de recogerla |
+| GET, POST | `/prestamos/cola/` | Autenticado | Ver mi cola de espera y ponerme en la cola de un recurso agotado |
+| DELETE | `/prestamos/cola/{id}/` | Autenticado | Salir de la cola |
+| GET | `/prestamos/admin/cola/` | Administrador | Ver la cola de espera (`?ficha_recurso=`, `?estado=`) |
 | GET | `/prestamos/admin/reservas/` | Administrador | Historial (`?estado=`, `?usuario=`, `?codigo_inventario=`, `?ficha_recurso=`) |
 | POST | `/prestamos/admin/reservas/` | Administrador | Prestar en el mostrador (queda `ACTIVO`) |
 | GET | `/prestamos/admin/reservas/{id}/` | Administrador | Ver un préstamo |
@@ -355,6 +358,11 @@ ACTIVO o VENCIDO ──► DEVUELTO (devolución) o PERDIDO (pérdida)
 - No se puede superar el máximo de préstamos a la vez de su tipo (las reservas sin recoger también cuentan).
 - Los días se cuentan desde la entrega, no desde la reserva.
 - Una renovación por préstamo, solo si no está vencido.
+
+**Cola de espera:** si un recurso está agotado, el usuario puede ponerse en cola. Cuando una copia
+se libera (por devolución o cancelación), se reserva automáticamente para el primero de la cola
+(orden de llegada) y se le avisa por correo; tiene hasta el siguiente día hábil para recogerla. Si
+no la recoge, pasa al siguiente. Un suspendido no puede ponerse en cola.
 
 **Calendario laboral:** la biblioteca atiende de lunes a viernes. El plazo de préstamo se cuenta
 en **días hábiles** (salta fines de semana y feriados), así que la fecha límite siempre cae en un

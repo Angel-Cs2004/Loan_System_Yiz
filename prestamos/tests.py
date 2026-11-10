@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta, timezone as dt_timezone
 from io import StringIO
 from unittest.mock import patch
 
+from django.core import mail
 from django.core.management import call_command
 from django.db import IntegrityError, connection, transaction
 from django.test import TransactionTestCase
@@ -15,7 +16,7 @@ from catalogo.models import Categoria, CondicionEjemplar, EjemplarFisico, Estado
 from users.models import EstadoUsuario, TipoUsuario, Usuario
 
 from . import services
-from .models import EstadoPrestamo, Feriado, PoliticaPrestamo, Prestamo
+from .models import ColaReserva, EstadoCola, EstadoPrestamo, Feriado, PoliticaPrestamo, Prestamo
 from .services import hoy, registrar_prestamo
 
 
@@ -496,6 +497,92 @@ class ReservaTests(PrestamoTestCase):
         self.como_admin()
         respuesta = self.client.patch(f'/catalogo/admin/ejemplares/{ejemplar.pk}/', {'estado': 'DISPONIBLE'})
         self.assertEqual(respuesta.status_code, 400)
+
+
+class ColaTests(PrestamoTestCase):
+    def setUp(self):
+        super().setUp()
+        self.tercero = Usuario.objects.create_user(
+            'tercero@test.com', 'ClaveSegura123', dni='10000004', cui='20200003', tipo_usuario=TipoUsuario.STUDENT,
+        )
+        self.cuarto = Usuario.objects.create_user(
+            'cuarto@test.com', 'ClaveSegura123', dni='10000005', cui='20200004', tipo_usuario=TipoUsuario.STUDENT,
+        )
+
+    def agotar_con_prestamo(self, ficha):
+        # Una copia prestada (para poder devolverla) y la otra reservada: 0 disponibles.
+        prestamo_id = self.prestar(ficha, self.alumno).data['id']
+        self.reservar(ficha, self.otro)
+        return prestamo_id
+
+    def unirse(self, usuario, ficha):
+        self.client.force_authenticate(usuario)
+        return self.client.post('/prestamos/cola/', {'ficha_recurso': str(ficha.pk)})
+
+    def test_no_se_une_si_hay_disponibles(self):
+        self.assertEqual(self.unirse(self.tercero, self.fichas[0]).status_code, 400)
+
+    def test_unirse_cuando_esta_agotado(self):
+        self.agotar_con_prestamo(self.fichas[0])
+        respuesta = self.unirse(self.tercero, self.fichas[0])
+        self.assertEqual(respuesta.status_code, 201)
+        self.assertEqual(respuesta.data['estado'], EstadoCola.ESPERANDO)
+        self.assertEqual(respuesta.data['posicion'], 1)
+
+    def test_no_se_une_dos_veces(self):
+        self.agotar_con_prestamo(self.fichas[0])
+        self.unirse(self.tercero, self.fichas[0])
+        self.assertEqual(self.unirse(self.tercero, self.fichas[0]).status_code, 400)
+
+    def test_suspendido_no_se_une(self):
+        self.agotar_con_prestamo(self.fichas[0])
+        self.tercero.suspendido_hasta = hoy() + timedelta(days=5)
+        self.tercero.save(update_fields=['suspendido_hasta'])
+        self.assertEqual(self.unirse(self.tercero, self.fichas[0]).status_code, 400)
+
+    def test_al_devolver_se_asigna_al_primero(self):
+        prestamo_id = self.agotar_con_prestamo(self.fichas[0])
+        self.unirse(self.tercero, self.fichas[0])
+        self.unirse(self.cuarto, self.fichas[0])
+        self.como_admin()
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO})
+
+        self.assertEqual(ColaReserva.objects.get(usuario=self.tercero).estado, EstadoCola.ATENDIDO)
+        self.assertEqual(ColaReserva.objects.get(usuario=self.cuarto).estado, EstadoCola.ESPERANDO)
+        asignado = Prestamo.objects.get(usuario=self.tercero, estado=EstadoPrestamo.RESERVADO)
+        self.assertEqual(asignado.ejemplar_fisico.ficha_recurso, self.fichas[0])
+        self.assertTrue(any('disponible' in m.subject.lower() for m in mail.outbox))
+
+    def test_cascada_si_el_primero_no_recoge(self):
+        prestamo_id = self.agotar_con_prestamo(self.fichas[0])
+        self.unirse(self.tercero, self.fichas[0])
+        self.unirse(self.cuarto, self.fichas[0])
+        self.como_admin()
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO})
+
+        # El tercero no recoge: su reserva caduca y debe pasar al cuarto.
+        asignado = Prestamo.objects.get(usuario=self.tercero, estado=EstadoPrestamo.RESERVADO)
+        Prestamo.objects.filter(pk=asignado.pk).update(fecha_prestamo=timezone.now() - timedelta(days=7))
+        call_command('marcar_vencidos', stdout=StringIO())
+
+        self.assertEqual(Prestamo.objects.get(pk=asignado.pk).estado, EstadoPrestamo.CANCELADO)
+        self.assertEqual(ColaReserva.objects.get(usuario=self.cuarto).estado, EstadoCola.ATENDIDO)
+        self.assertTrue(Prestamo.objects.filter(usuario=self.cuarto, estado=EstadoPrestamo.RESERVADO).exists())
+
+    def test_salir_de_la_cola(self):
+        self.agotar_con_prestamo(self.fichas[0])
+        entrada_id = self.unirse(self.tercero, self.fichas[0]).data['id']
+        self.assertEqual(self.client.delete(f'/prestamos/cola/{entrada_id}/').status_code, 204)
+        self.assertEqual(ColaReserva.objects.get(pk=entrada_id).estado, EstadoCola.CANCELADO)
+
+    def test_admin_ve_la_cola(self):
+        self.agotar_con_prestamo(self.fichas[0])
+        self.unirse(self.tercero, self.fichas[0])
+        self.client.force_authenticate(self.alumno)
+        self.assertEqual(self.client.get('/prestamos/admin/cola/').status_code, 403)
+        self.como_admin()
+        respuesta = self.client.get(f'/prestamos/admin/cola/?ficha_recurso={self.fichas[0].pk}')
+        self.assertEqual(respuesta.data['count'], 1)
 
 
 class MostradorTests(PrestamoTestCase):

@@ -6,7 +6,7 @@ from rest_framework import serializers
 from catalogo.models import CondicionEjemplar, EjemplarFisico, EstadoFicha, FichaRecurso
 from catalogo.services import ejemplares_prestables
 
-from .models import EstadoPrestamo, Feriado, PoliticaPrestamo, Prestamo
+from .models import ColaReserva, EstadoCola, EstadoPrestamo, Feriado, PoliticaPrestamo, Prestamo
 from .services import limite_para_recoger
 
 
@@ -99,6 +99,31 @@ class PrestamoSerializer(serializers.ModelSerializer):
         if prestamo.fecha_devolucion is not None:
             return prestamo.fecha_devolucion > prestamo.fecha_limite
         return prestamo.estado == EstadoPrestamo.VENCIDO
+
+
+class ColaCreateSerializer(serializers.Serializer):
+    ficha_recurso = serializers.PrimaryKeyRelatedField(queryset=FichaRecurso.objects.all())
+
+
+class ColaReservaSerializer(serializers.ModelSerializer):
+    usuario_email = serializers.EmailField(source='usuario.email', read_only=True)
+    ficha_recurso_nombre = serializers.CharField(source='ficha_recurso.nombre', read_only=True)
+    posicion = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ColaReserva
+        fields = ['id', 'usuario', 'usuario_email', 'ficha_recurso', 'ficha_recurso_nombre',
+                  'fecha_solicitud', 'estado', 'posicion']
+        read_only_fields = fields
+
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_posicion(self, entrada):
+        if entrada.estado != EstadoCola.ESPERANDO:
+            return None
+        return ColaReserva.objects.filter(
+            ficha_recurso=entrada.ficha_recurso, estado=EstadoCola.ESPERANDO,
+            fecha_solicitud__lte=entrada.fecha_solicitud,
+        ).count()
 
 
 class DevolucionSerializer(serializers.Serializer):

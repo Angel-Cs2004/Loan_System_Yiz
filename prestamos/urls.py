@@ -1,6 +1,9 @@
 from django.urls import path
 
 from .views import (
+    ColaAdminListView,
+    ColaListCreateView,
+    ColaSalirView,
     FeriadoAdminDetailView,
     FeriadoAdminListCreateView,
     MiPrestamoCancelarView,
@@ -27,6 +30,10 @@ urlpatterns = [
     path('reservar/', PrestamoCreateView.as_view()),
     path('mis-reservas/', MisPrestamosView.as_view()),
     path('mis-reservas/<uuid:pk>/cancelar/', MiPrestamoCancelarView.as_view()),
+
+    path('cola/', ColaListCreateView.as_view()),
+    path('cola/<uuid:pk>/', ColaSalirView.as_view()),
+    path('admin/cola/', ColaAdminListView.as_view()),
 
     path('admin/reservas/', PrestamoListView.as_view()),
     path('admin/reservas/<uuid:pk>/', PrestamoDetailView.as_view()),
