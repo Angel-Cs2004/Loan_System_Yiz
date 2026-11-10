@@ -11,6 +11,7 @@ from prestamos.services import cancelar_reservas
 
 from .models import EstadoUsuario, Usuario
 from .tasks import enviar_correo_task
+from .tokens import activacion_token
 
 
 def cerrar_sesiones(usuario):
@@ -55,3 +56,31 @@ def restablecer_password(usuario, password):
     usuario.set_password(password)
     usuario.save(update_fields=['password'])
     cerrar_sesiones(usuario)
+
+
+def enviar_correo_activacion(usuario):
+    uid = urlsafe_base64_encode(force_bytes(usuario.pk))
+    token = activacion_token.make_token(usuario)
+    enlace = f'{settings.FRONTEND_URL}/activar-cuenta?uid={uid}&token={token}'
+    enviar_correo_task.delay(
+        'Activa tu cuenta - Sistema de Prestamos',
+        (
+            f'Hola {usuario.first_name or usuario.email},\n\n'
+            f'Para activar tu cuenta entra a este enlace:\n{enlace}\n\n'
+            'Si no te registraste, ignora este correo.'
+        ),
+        [usuario.email],
+    )
+
+
+def activar_cuenta(usuario):
+    usuario.status = EstadoUsuario.ACTIVO
+    usuario.save(update_fields=['status'])
+    enviar_correo_task.delay(
+        'Tu cuenta ya esta activa - Sistema de Prestamos',
+        (
+            f'Hola {usuario.first_name or usuario.email},\n\n'
+            'Tu cuenta fue activada correctamente. Ya puedes iniciar sesion y pedir recursos.'
+        ),
+        [usuario.email],
+    )

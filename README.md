@@ -19,7 +19,7 @@ Proyecto de la asignatura *Trabajo Interdisciplinario II* — Escuela Profesiona
 
 ## Funcionalidades
 
-- **Cuentas:** registro público de estudiantes, inicio de sesión con JWT, renovación de token, cierre de sesión con lista negra de tokens, cambio de contraseña y recuperación por correo ("olvidé mi contraseña").
+- **Cuentas:** registro público de estudiantes (solo con correo institucional y confirmación por correo), inicio de sesión con JWT, renovación de token, cierre de sesión con lista negra de tokens, cambio de contraseña y recuperación por correo ("olvidé mi contraseña").
 - **Perfil propio:** cada usuario consulta y edita sus datos básicos.
 - **Administración de usuarios:** el administrador lista (con búsqueda y filtros), crea, modifica, reclasifica, suspende y da de baja usuarios. La baja es lógica: se conserva el historial.
 - **Catálogo:** recursos (fichas) agrupados en categorías, cada uno con sus unidades físicas (ejemplares) identificadas por código de inventario. Los usuarios ven solo los recursos activos y cuántas unidades hay libres.
@@ -256,7 +256,8 @@ La referencia completa para el frontend (cuerpos, respuestas y errores de cada e
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| POST | `/users/registro/` | Público | Registro (entra como estudiante) |
+| POST | `/users/registro/` | Público | Registro de estudiantes (solo correo institucional; la cuenta queda pendiente de confirmar) |
+| POST | `/users/activar/` | Público | Activa la cuenta con el `uid` y `token` del correo de activación |
 | POST | `/login/` | Público | Obtiene los tokens `access` y `refresh` |
 | POST | `/login/refresh/` | Público | Renueva el token de acceso |
 | POST | `/users/logout/` | Autenticado | Invalida el token `refresh` |

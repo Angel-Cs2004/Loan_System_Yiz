@@ -11,6 +11,7 @@ from rest_framework.exceptions import ValidationError
 from django.db.models import Q
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import (
+    ActivarCuentaSerializer,
     CambiarPasswordSerializer,
     LogoutSerializer,
     MiTokenObtainPairSerializer,
@@ -20,8 +21,10 @@ from .serializers import (
     UsuarioAdminSerializer,
 )
 from .services import (
+    activar_cuenta,
     aplicar_cambio_de_estado,
     cerrar_sesiones,
+    enviar_correo_activacion,
     enviar_enlace_restablecimiento,
     restablecer_password,
     validar_cambio_de_estado,
@@ -53,6 +56,28 @@ class RegistroUsuarioView(generics.CreateAPIView):
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'registro'
+
+    def perform_create(self, serializer):
+        usuario = serializer.save()
+        enviar_correo_activacion(usuario)
+
+
+class ActivarCuentaView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=ActivarCuentaSerializer, responses={200: None})
+    def post(self, request):
+        serializer = ActivarCuentaSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        usuario = serializer.validated_data['usuario']
+        if usuario.status == EstadoUsuario.ACTIVO:
+            return Response({'detail': 'La cuenta ya estaba activa. Puedes iniciar sesion.'})
+        # Blindaje: solo se activa una cuenta recien registrada que nunca inicio sesion
+        # (asi un enlace de activacion nunca reactiva una cuenta dada de baja por el admin).
+        if usuario.status != EstadoUsuario.INACTIVO or usuario.last_login is not None:
+            raise ValidationError('Esta cuenta no se puede activar.')
+        activar_cuenta(usuario)
+        return Response({'detail': 'Cuenta activada. Ya puedes iniciar sesion.'})
 
 
 class MiTokenObtainPairView(TokenObtainPairView):

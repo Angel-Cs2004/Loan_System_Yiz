@@ -137,6 +137,9 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Sistema de Prestamos 
 
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173').rstrip('/')
 
+# Dominios de correo permitidos para el registro publico (institucionales), separados por coma.
+DOMINIOS_REGISTRO_PERMITIDOS = config('DOMINIOS_REGISTRO_PERMITIDOS', default='unsa.edu.pe', cast=Csv())
+
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default=FRONTEND_URL, cast=Csv())
 PASSWORD_RESET_TIMEOUT = 60 * 60
 

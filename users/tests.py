@@ -148,17 +148,67 @@ class AccesoTests(UsuariosTestCase):
 
     def test_lo_publico_sigue_abierto(self):
         registro = self.client.post('/users/registro/', {
-            'email': 'nuevo@test.com', 'password': 'ClaveSegura123', 'dni': '10000009', 'cui': '20200009',
+            'email': 'nuevo@unsa.edu.pe', 'password': 'ClaveSegura123', 'dni': '10000009', 'cui': '20200009',
         })
         self.assertEqual(registro.status_code, 201)
-        login = self.client.post('/login/', {'email': 'nuevo@test.com', 'password': 'ClaveSegura123'})
-        self.assertEqual(login.status_code, 200)
+        # La cuenta queda pendiente de confirmar el correo: aun no puede iniciar sesion.
+        login = self.client.post('/login/', {'email': 'nuevo@unsa.edu.pe', 'password': 'ClaveSegura123'})
+        self.assertEqual(login.status_code, 401)
         self.assertEqual(self.client.post('/users/password/olvide/', {'email': 'x@test.com'}).status_code, 200)
         self.assertEqual(self.client.get('/api/schema/').status_code, 200)
 
     def test_lo_privado_pide_sesion(self):
         self.assertEqual(self.client.get('/catalogo/recursos/').status_code, 401)
         self.assertEqual(self.client.get('/users/perfil/').status_code, 401)
+
+
+class RegistroActivacionTests(APITestCase):
+    def registrar(self, email='nuevo@unsa.edu.pe', dni='10000009', cui='20200009'):
+        return self.client.post('/users/registro/', {
+            'email': email, 'password': 'ClaveSegura123', 'dni': dni, 'cui': cui,
+        })
+
+    def datos_del_enlace(self):
+        return dict(re.findall(r'(uid|token)=([^&\s]+)', mail.outbox[-1].body))
+
+    def test_rechaza_dominio_no_institucional(self):
+        self.assertEqual(self.registrar(email='ajeno@gmail.com').status_code, 400)
+        self.assertFalse(Usuario.objects.filter(email='ajeno@gmail.com').exists())
+
+    def test_registro_deja_la_cuenta_pendiente_y_manda_correo(self):
+        self.assertEqual(self.registrar().status_code, 201)
+        usuario = Usuario.objects.get(email='nuevo@unsa.edu.pe')
+        self.assertEqual(usuario.status, EstadoUsuario.INACTIVO)
+        self.assertFalse(usuario.is_active)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('activ', mail.outbox[-1].subject.lower())
+
+    def test_pendiente_no_inicia_sesion(self):
+        self.registrar()
+        login = self.client.post('/login/', {'email': 'nuevo@unsa.edu.pe', 'password': 'ClaveSegura123'})
+        self.assertEqual(login.status_code, 401)
+
+    def test_activar_con_token_valido(self):
+        self.registrar()
+        respuesta = self.client.post('/users/activar/', self.datos_del_enlace())
+        self.assertEqual(respuesta.status_code, 200)
+        usuario = Usuario.objects.get(email='nuevo@unsa.edu.pe')
+        self.assertEqual(usuario.status, EstadoUsuario.ACTIVO)
+        self.assertEqual(len(mail.outbox), 2)  # activacion + aviso de cuenta activa
+        login = self.client.post('/login/', {'email': 'nuevo@unsa.edu.pe', 'password': 'ClaveSegura123'})
+        self.assertEqual(login.status_code, 200)
+
+    def test_token_invalido_no_activa(self):
+        self.registrar()
+        malo = {'uid': self.datos_del_enlace()['uid'], 'token': 'abc-123'}
+        self.assertEqual(self.client.post('/users/activar/', malo).status_code, 400)
+        self.assertEqual(Usuario.objects.get(email='nuevo@unsa.edu.pe').status, EstadoUsuario.INACTIVO)
+
+    def test_activar_dos_veces_es_idempotente(self):
+        self.registrar()
+        datos = self.datos_del_enlace()
+        self.assertEqual(self.client.post('/users/activar/', datos).status_code, 200)
+        self.assertEqual(self.client.post('/users/activar/', datos).status_code, 200)
 
 
 class CorsTests(APITestCase):
@@ -213,11 +263,11 @@ class ThrottlingTests(APITestCase):
     def test_registro_se_bloquea(self):
         for i in range(3):
             respuesta = self.client.post('/users/registro/', {
-                'email': f'nuevo{i}@test.com', 'password': 'ClaveSegura123',
+                'email': f'nuevo{i}@unsa.edu.pe', 'password': 'ClaveSegura123',
                 'dni': f'2000000{i}', 'cui': f'3000000{i}',
             })
             self.assertEqual(respuesta.status_code, 201)
         respuesta = self.client.post('/users/registro/', {
-            'email': 'nuevo9@test.com', 'password': 'ClaveSegura123', 'dni': '29000009', 'cui': '39000009',
+            'email': 'nuevo9@unsa.edu.pe', 'password': 'ClaveSegura123', 'dni': '29000009', 'cui': '39000009',
         })
         self.assertEqual(respuesta.status_code, 429)

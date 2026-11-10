@@ -1,11 +1,13 @@
+from django.conf import settings
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
-from .models import Usuario, TipoUsuario
+from .models import EstadoUsuario, Usuario, TipoUsuario
 from .services import aplicar_cambio_de_estado, cerrar_sesiones, validar_cambio_de_estado
+from .tokens import activacion_token
 
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -36,7 +38,12 @@ class RegistroUsuarioSerializer(serializers.ModelSerializer):
         extra_kwargs = {'cui': {'required': True, 'allow_null': False, 'allow_blank': False}}
 
     def validate_email(self, email):
-        return normalizar_email_unico(email)
+        email = normalizar_email_unico(email)
+        dominio = email.rsplit('@', 1)[-1]
+        if dominio not in settings.DOMINIOS_REGISTRO_PERMITIDOS:
+            permitidos = ', '.join(settings.DOMINIOS_REGISTRO_PERMITIDOS)
+            raise serializers.ValidationError(f'Solo se permiten correos institucionales ({permitidos}).')
+        return email
 
     def validate(self, attrs):
         validar_password(attrs['password'], Usuario(**{k: v for k, v in attrs.items() if k != 'password'}))
@@ -44,6 +51,7 @@ class RegistroUsuarioSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data['tipo_usuario'] = TipoUsuario.STUDENT
+        validated_data['status'] = EstadoUsuario.INACTIVO  # pendiente hasta confirmar el correo
         return Usuario.objects.create_user(**validated_data)
 
 class MiTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -141,6 +149,23 @@ class UsuarioAdminSerializer(serializers.ModelSerializer):
         if password:
             cerrar_sesiones(instance)
         return instance
+
+
+class ActivarCuentaSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+
+    def validate(self, attrs):
+        invalido = serializers.ValidationError({'token': 'El enlace no es valido o ya vencio. Solicita uno nuevo.'})
+        try:
+            pk = force_str(urlsafe_base64_decode(attrs['uid']))
+            usuario = Usuario.objects.get(pk=pk)
+        except (ValueError, TypeError, OverflowError, Usuario.DoesNotExist):
+            raise invalido
+        if not activacion_token.check_token(usuario, attrs['token']):
+            raise invalido
+        attrs['usuario'] = usuario
+        return attrs
 
 
 class SolicitarRestablecimientoSerializer(serializers.Serializer):
