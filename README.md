@@ -187,6 +187,17 @@ Para monitoreo de errores en tiempo real se integra **Sentry** (opcional): defin
 para activarlo. Sin DSN, queda desactivado. No se envían datos personales
 (`send_default_pii=False`).
 
+### Límite de peticiones (throttling)
+
+La API limita la cantidad de peticiones para frenar abuso y fuerza bruta. Hay un
+límite global para usuarios anónimos y autenticados, y límites más estrictos en los
+endpoints sensibles: login, registro y recuperación de contraseña. Todos los valores
+se configuran en el `.env` (`THROTTLE_*`). El límite es por IP, así que si varios
+usuarios comparten la misma red (NAT) conviene subirlos.
+
+Los contadores se guardan en la caché; con varios procesos en producción conviene
+una caché compartida en Redis (`REDIS_CACHE_URL`).
+
 ### Pruebas
 
 ```bash

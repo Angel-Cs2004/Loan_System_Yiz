@@ -139,6 +139,13 @@ FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173').rstrip('/
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default=FRONTEND_URL, cast=Csv())
 PASSWORD_RESET_TIMEOUT = 60 * 60
 
+# Durante los tests se desactiva el throttling para que el conteo no se acumule
+# entre casos (la cache es compartida en el proceso). Los tests de throttling lo
+# reactivan con rates concretos mediante override_settings.
+import sys  # noqa: E402
+
+TESTING = 'test' in sys.argv
+
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -148,7 +155,32 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_PAGINATION_CLASS': 'prestamos_sistema.paginacion.Paginacion',
+    # Limite de peticiones (rate limiting). Global para anonimos y autenticados;
+    # los endpoints sensibles usan un scope propio mas estricto (ver vistas).
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': None if TESTING else config('THROTTLE_ANON', default='60/min'),
+        'user': None if TESTING else config('THROTTLE_USER', default='1000/hour'),
+        'login': None if TESTING else config('THROTTLE_LOGIN', default='5/min'),
+        'registro': None if TESTING else config('THROTTLE_REGISTRO', default='10/hour'),
+        'password_reset': None if TESTING else config('THROTTLE_PASSWORD_RESET', default='5/hour'),
+    },
 }
+
+# El throttling guarda sus contadores en la cache. Con varios procesos (gunicorn),
+# conviene una cache compartida en Redis para que el limite sea global y no por proceso.
+# Sin REDIS_CACHE_URL se usa la cache en memoria por defecto de Django.
+REDIS_CACHE_URL = config('REDIS_CACHE_URL', default='')
+if REDIS_CACHE_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': REDIS_CACHE_URL,
+        },
+    }
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
     'REFRESH_TOKEN_LIFETIME': timedelta(minutes=60),

@@ -1,7 +1,9 @@
 import re
 
 from django.core import mail
+from django.core.cache import cache
 from rest_framework.test import APITestCase
+from rest_framework.throttling import SimpleRateThrottle
 
 from catalogo.models import Categoria, EjemplarFisico, FichaRecurso
 from prestamos.models import EstadoPrestamo, Prestamo
@@ -168,3 +170,54 @@ class CorsTests(APITestCase):
     def test_otro_origen_no(self):
         respuesta = self.client.get('/api/schema/', HTTP_ORIGIN='http://sitio-cualquiera.com')
         self.assertNotIn('Access-Control-Allow-Origin', respuesta.headers)
+
+
+# Rates concretos para probar el throttling. En el resto de la suite esta desactivado
+# (rates None). DRF fija THROTTLE_RATES al importar, por eso se parchea la clase base
+# en vez de usar override_settings.
+THROTTLE_RATES_PRUEBA = {
+    'anon': '100/min',
+    'user': '1000/min',
+    'login': '3/min',
+    'registro': '3/min',
+    'password_reset': '3/min',
+}
+
+
+class ThrottlingTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self._rates_originales = SimpleRateThrottle.THROTTLE_RATES
+        SimpleRateThrottle.THROTTLE_RATES = THROTTLE_RATES_PRUEBA
+        Usuario.objects.create_user(
+            'alumno@test.com', 'ClaveSegura123', dni='10000002', cui='20200001',
+            tipo_usuario=TipoUsuario.STUDENT,
+        )
+
+    def tearDown(self):
+        SimpleRateThrottle.THROTTLE_RATES = self._rates_originales
+        cache.clear()
+
+    def test_login_se_bloquea_tras_superar_el_limite(self):
+        for _ in range(3):
+            self.client.post('/login/', {'email': 'alumno@test.com', 'password': 'incorrecta'})
+        respuesta = self.client.post('/login/', {'email': 'alumno@test.com', 'password': 'incorrecta'})
+        self.assertEqual(respuesta.status_code, 429)
+
+    def test_recuperar_password_se_bloquea(self):
+        for _ in range(3):
+            self.client.post('/users/password/olvide/', {'email': 'alumno@test.com'})
+        respuesta = self.client.post('/users/password/olvide/', {'email': 'alumno@test.com'})
+        self.assertEqual(respuesta.status_code, 429)
+
+    def test_registro_se_bloquea(self):
+        for i in range(3):
+            respuesta = self.client.post('/users/registro/', {
+                'email': f'nuevo{i}@test.com', 'password': 'ClaveSegura123',
+                'dni': f'2000000{i}', 'cui': f'3000000{i}',
+            })
+            self.assertEqual(respuesta.status_code, 201)
+        respuesta = self.client.post('/users/registro/', {
+            'email': 'nuevo9@test.com', 'password': 'ClaveSegura123', 'dni': '29000009', 'cui': '39000009',
+        })
+        self.assertEqual(respuesta.status_code, 429)

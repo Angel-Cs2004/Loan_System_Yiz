@@ -4,6 +4,7 @@ from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import ValidationError
@@ -47,13 +48,17 @@ class LogoutView(APIView):
 class RegistroUsuarioView(generics.CreateAPIView):
     serializer_class = RegistroUsuarioSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'registro'
 
 
 class MiTokenObtainPairView(TokenObtainPairView):
     serializer_class = MiTokenObtainPairSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'login'
 
 
-class PerfilView(generics.RetrieveUpdateAPIView):
+class PerfilView(generics.RetrieveUpdateAPIView): # es bueno poner la contra aqui?
     serializer_class = PerfilSerializer
     permission_classes = [IsAuthenticated]
     http_method_names = ['get', 'patch']
@@ -86,6 +91,8 @@ def validar_opcion(params, nombre, opciones):
 
 class SolicitarRestablecimientoView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'password_reset'
 
     @extend_schema(request=SolicitarRestablecimientoSerializer, responses={200: None})
     def post(self, request):
