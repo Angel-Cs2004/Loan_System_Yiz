@@ -1,9 +1,15 @@
 import re
+from datetime import timedelta
 
 from django.core import mail
 from django.core.cache import cache
+from django.utils import timezone
 from rest_framework.test import APITestCase
 from rest_framework.throttling import SimpleRateThrottle
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+from rest_framework_simplejwt.tokens import RefreshToken
+
+from .tasks import limpiar_tokens_task
 
 from catalogo.models import Categoria, EjemplarFisico, FichaRecurso
 from prestamos.models import EstadoPrestamo, Prestamo
@@ -209,6 +215,21 @@ class RegistroActivacionTests(APITestCase):
         datos = self.datos_del_enlace()
         self.assertEqual(self.client.post('/users/activar/', datos).status_code, 200)
         self.assertEqual(self.client.post('/users/activar/', datos).status_code, 200)
+
+
+class LimpiezaTokensTests(APITestCase):
+    def test_la_tarea_borra_los_tokens_expirados(self):
+        usuario = Usuario.objects.create_user(
+            'admin@test.com', 'ClaveSegura123', dni='10000001', tipo_usuario=TipoUsuario.ADMINISTRATOR,
+        )
+        vigente = RefreshToken.for_user(usuario)
+        expirado = RefreshToken.for_user(usuario)
+        OutstandingToken.objects.filter(jti=expirado['jti']).update(expires_at=timezone.now() - timedelta(days=1))
+
+        limpiar_tokens_task()
+
+        self.assertFalse(OutstandingToken.objects.filter(jti=expirado['jti']).exists())
+        self.assertTrue(OutstandingToken.objects.filter(jti=vigente['jti']).exists())
 
 
 class CorsTests(APITestCase):

@@ -1,6 +1,7 @@
 import logging
 
 from celery import shared_task
+from django.core.management import call_command
 from django.core.mail import send_mail
 
 logger = logging.getLogger('users')
@@ -27,3 +28,13 @@ def enviar_correo_task(self, subject, message, recipient_list):
             raise self.retry(exc=exc)
         except self.MaxRetriesExceededError:
             logger.error('No se pudo enviar el correo a %s tras varios intentos: %s', recipient_list, exc)
+
+
+@shared_task(name='users.limpiar_tokens_expirados')
+def limpiar_tokens_task():
+    """Borra los refresh tokens ya expirados para que la tabla no crezca sin control.
+
+    Se programa a diario desde Celery Beat (ver CELERY_BEAT_SCHEDULE en settings).
+    Los tokens aun validos no se tocan.
+    """
+    call_command('flushexpiredtokens', verbosity=0)

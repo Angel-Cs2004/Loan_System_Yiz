@@ -230,6 +230,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'prestamos.actualizar_estados',
         'schedule': crontab(minute=0),
     },
+    'limpiar-tokens-cada-dia': {
+        'task': 'users.limpiar_tokens_expirados',
+        'schedule': crontab(hour=3, minute=0),  # a diario, 3:00 AM
+    },
 }
 
 # --- Logging ---

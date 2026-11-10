@@ -156,6 +156,10 @@ mediante **Celery**, sin depender de que alguien consulte el sistema. La tarea
 `prestamos.actualizar_estados` corre **cada hora** (ver `CELERY_BEAT_SCHEDULE` en
 `settings.py`).
 
+Además, cada día de madrugada se ejecuta `flushexpiredtokens` (tarea
+`users.limpiar_tokens_expirados`) para borrar los refresh tokens ya expirados y evitar
+que esa tabla crezca sin control.
+
 Requiere **Redis** como broker (en Arch: `sudo pacman -S redis && sudo systemctl enable --now redis`).
 Configura `CELERY_BROKER_URL` en el `.env` (por defecto `redis://localhost:6379/0`).
 
