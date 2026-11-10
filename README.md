@@ -306,6 +306,16 @@ La referencia completa para el frontend (cuerpos, respuestas y errores de cada e
 | GET | `/prestamos/admin/politicas/` | Administrador | Ver las reglas por tipo de usuario |
 | GET, PATCH | `/prestamos/admin/politicas/{id}/` | Administrador | Cambiar días y máximo de préstamos a la vez |
 
+### Auditoría
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/auditoria/` | Administrador | Bitácora de acciones sensibles (`?actor=` id, `?accion=`, `?desde=`, `?hasta=` en `YYYY-MM-DD`) |
+
+Se registra quién hace qué y cuándo en las acciones sensibles: cambiar el estado, el rol o la
+suspensión de un usuario, darlo de baja; dar de baja, reactivar o eliminar recursos, categorías y
+ejemplares; editar políticas; y marcar un préstamo como perdido o cancelarlo.
+
 ## Reglas de negocio
 
 **Reglas por tipo de usuario** (valores iniciales; el administrador los cambia en `/prestamos/admin/politicas/`):

@@ -39,7 +39,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'catalogo',
     'prestamos',
-    'users'
+    'users',
+    'auditoria',
 ]
 AUTH_USER_MODEL = 'users.Usuario'
 MIDDLEWARE = [

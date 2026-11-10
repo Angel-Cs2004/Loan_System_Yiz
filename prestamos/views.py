@@ -8,6 +8,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from users.permissions import EsAdministrador
 
+from auditoria.models import AccionAuditoria
+from auditoria.services import registrar
+
 from .models import EstadoPrestamo, PoliticaPrestamo, Prestamo
 from .serializers import (
     DevolucionSerializer,
@@ -51,6 +54,10 @@ class PoliticaPrestamoAdminDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = PoliticaPrestamoSerializer
     permission_classes = [EsAdministrador]
     http_method_names = ["get", "patch"]
+
+    def perform_update(self, serializer):
+        politica = serializer.save()
+        registrar(self.request.user, AccionAuditoria.POLITICA_EDITADA, f'Politica {politica.tipo_usuario}')
 
 
 class PrestamoCreateView(APIView):
@@ -177,7 +184,9 @@ class PrestamoCancelarAdminView(APIView):
 
     @extend_schema(request=None, responses=PrestamoSerializer)
     def post(self, request, pk):
-        return responder(cancelar_prestamo(pk))
+        prestamo = cancelar_prestamo(pk)
+        registrar(request.user, AccionAuditoria.PRESTAMO_CANCELADO, f'Prestamo #{prestamo.pk}')
+        return responder(prestamo)
 
 
 class PrestamoEntregaView(APIView):
@@ -208,9 +217,9 @@ class PrestamoPerdidoView(APIView):
     def post(self, request, pk):
         serializer = PerdidaSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        return responder(
-            marcar_perdido(pk, serializer.validated_data.get("observaciones", ""))
-        )
+        prestamo = marcar_perdido(pk, serializer.validated_data.get("observaciones", ""))
+        registrar(request.user, AccionAuditoria.PRESTAMO_PERDIDO, f'Prestamo #{prestamo.pk}')
+        return responder(prestamo)
 
 
 class PrestamoRenovarAdminView(APIView):

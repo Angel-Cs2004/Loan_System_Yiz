@@ -29,6 +29,9 @@ from .services import (
 from .permissions import EsAdministrador
 from .models import EstadoUsuario, TipoUsuario, Usuario
 
+from auditoria.models import AccionAuditoria
+from auditoria.services import registrar
+
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 
 
@@ -154,8 +157,22 @@ class UsuarioAdminDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [EsAdministrador]
     http_method_names = ['get', 'patch', 'delete']
 
+    def perform_update(self, serializer):
+        instancia = serializer.instance
+        antes = (instancia.status, instancia.tipo_usuario, instancia.suspendido_hasta)
+        usuario = serializer.save()
+        actor = self.request.user
+        objeto = f'Usuario #{usuario.pk} ({usuario.email})'
+        if usuario.status != antes[0]:
+            registrar(actor, AccionAuditoria.USUARIO_CAMBIO_ESTADO, objeto, f'{antes[0]} -> {usuario.status}')
+        if usuario.tipo_usuario != antes[1]:
+            registrar(actor, AccionAuditoria.USUARIO_CAMBIO_ROL, objeto, f'{antes[1]} -> {usuario.tipo_usuario}')
+        if usuario.suspendido_hasta != antes[2]:
+            registrar(actor, AccionAuditoria.USUARIO_SUSPENSION, objeto, f'suspendido_hasta: {usuario.suspendido_hasta}')
+
     def perform_destroy(self, usuario):
         if usuario.pk == self.request.user.pk:
             raise ValidationError('No puedes darte de baja a ti mismo.')
         validar_cambio_de_estado(usuario, EstadoUsuario.INACTIVO)
         aplicar_cambio_de_estado(usuario, EstadoUsuario.INACTIVO)
+        registrar(self.request.user, AccionAuditoria.USUARIO_BAJA, f'Usuario #{usuario.pk} ({usuario.email})')
