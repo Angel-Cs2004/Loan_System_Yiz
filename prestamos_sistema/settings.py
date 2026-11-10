@@ -259,3 +259,25 @@ if SENTRY_DSN:
         # No enviar datos personales (DNI, email, etc.) a un servicio externo.
         send_default_pii=False,
     )
+
+# --- Seguridad ---
+# Estas dos protecciones no estorban en desarrollo, asi que van siempre activas.
+SECURE_CONTENT_TYPE_NOSNIFF = True  # el navegador no "adivina" tipos MIME (evita XSS)
+X_FRAME_OPTIONS = 'DENY'            # nadie puede embeber la API en un iframe (clickjacking)
+
+# El resto fuerza HTTPS y cookies seguras: solo tiene sentido en produccion (DEBUG=False),
+# porque en local se sirve por HTTP y activarlo romperia el desarrollo.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True          # redirige todo el trafico HTTP a HTTPS
+    SESSION_COOKIE_SECURE = True        # la cookie de sesion solo viaja por HTTPS
+    CSRF_COOKIE_SECURE = True           # el token CSRF solo viaja por HTTPS
+
+    # HSTS: el navegador recuerda que este dominio es solo HTTPS. Potente pero delicado;
+    # por eso el valor es configurable (pon 0 para desactivarlo si aun no tienes HTTPS estable).
+    SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=31536000, cast=int)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+    # Detras de un proxy/balanceador que termina el TLS (Railway, Render, nginx),
+    # asi Django sabe que la peticion original llego por HTTPS.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
