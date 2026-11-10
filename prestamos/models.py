@@ -41,6 +41,19 @@ class PoliticaPrestamo(models.Model):
         return f'{self.tipo_usuario}: {self.dias_maximo_prestamo} dias, max {self.max_prestamos_simultaneos}'
 
 
+class Feriado(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    fecha = models.DateField(unique=True)
+    descripcion = models.CharField(max_length=150)
+
+    class Meta:
+        db_table = 'feriados'
+        ordering = ['fecha']
+
+    def __str__(self):
+        return f'{self.fecha} - {self.descripcion}'
+
+
 class Prestamo(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='prestamos')

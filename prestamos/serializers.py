@@ -1,5 +1,3 @@
-from datetime import timedelta
-
 from django.contrib.auth import get_user_model
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
@@ -8,8 +6,15 @@ from rest_framework import serializers
 from catalogo.models import CondicionEjemplar, EjemplarFisico, EstadoFicha, FichaRecurso
 from catalogo.services import ejemplares_prestables
 
-from .models import EstadoPrestamo, PoliticaPrestamo, Prestamo
-from .services import HORAS_PARA_RECOGER
+from .models import EstadoPrestamo, Feriado, PoliticaPrestamo, Prestamo
+from .services import limite_para_recoger
+
+
+class FeriadoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Feriado
+        fields = ['id', 'fecha', 'descripcion']
+        read_only_fields = ['id']
 
 
 class PoliticaPrestamoSerializer(serializers.ModelSerializer):
@@ -88,7 +93,7 @@ class PrestamoSerializer(serializers.ModelSerializer):
     def get_recoger_antes_de(self, prestamo):
         if prestamo.estado != EstadoPrestamo.RESERVADO:
             return None
-        return serializers.DateTimeField().to_representation(prestamo.fecha_prestamo + timedelta(hours=HORAS_PARA_RECOGER))
+        return serializers.DateTimeField().to_representation(limite_para_recoger(prestamo.fecha_prestamo))
 
     def get_con_retraso(self, prestamo) -> bool:
         if prestamo.fecha_devolucion is not None:

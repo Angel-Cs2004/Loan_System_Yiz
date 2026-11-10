@@ -11,9 +11,10 @@ from users.permissions import EsAdministrador
 from auditoria.models import AccionAuditoria
 from auditoria.services import registrar
 
-from .models import EstadoPrestamo, PoliticaPrestamo, Prestamo
+from .models import EstadoPrestamo, Feriado, PoliticaPrestamo, Prestamo
 from .serializers import (
     DevolucionSerializer,
+    FeriadoSerializer,
     PerdidaSerializer,
     PoliticaPrestamoSerializer,
     PrestamoAdminCreateSerializer,
@@ -58,6 +59,18 @@ class PoliticaPrestamoAdminDetailView(generics.RetrieveUpdateAPIView):
     def perform_update(self, serializer):
         politica = serializer.save()
         registrar(self.request.user, AccionAuditoria.POLITICA_EDITADA, f'Politica {politica.tipo_usuario}')
+
+
+class FeriadoAdminListCreateView(generics.ListCreateAPIView):
+    queryset = Feriado.objects.all()
+    serializer_class = FeriadoSerializer
+    permission_classes = [EsAdministrador]
+
+
+class FeriadoAdminDetailView(generics.RetrieveDestroyAPIView):
+    queryset = Feriado.objects.all()
+    serializer_class = FeriadoSerializer
+    permission_classes = [EsAdministrador]
 
 
 class PrestamoCreateView(APIView):

@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -9,7 +9,7 @@ from rest_framework.exceptions import ValidationError
 from catalogo.models import CondicionEjemplar, EjemplarFisico, EstadoEjemplar, EstadoFicha
 from catalogo.services import ejemplares_prestables, estado_tras_devolucion
 
-from .models import ESTADOS_ENTREGADOS, ESTADOS_PENDIENTES, EstadoPrestamo, PoliticaPrestamo, Prestamo
+from .models import ESTADOS_ENTREGADOS, ESTADOS_PENDIENTES, EstadoPrestamo, Feriado, PoliticaPrestamo, Prestamo
 
 
 DIAS_POR_DEFECTO = 7
@@ -17,14 +17,46 @@ MAX_PRESTAMOS_POR_DEFECTO = 3
 
 MAX_RENOVACIONES = 1
 
-HORAS_PARA_RECOGER = 24
-
 FACTOR_SUSPENSION_POR_DEFECTO = 2
 DIAS_SUSPENSION_PERDIDA_POR_DEFECTO = 30
 
 
 def hoy():
     return timezone.localdate()
+
+
+def es_dia_habil(fecha):
+    # La biblioteca atiende de lunes a viernes; weekday() 5 y 6 son sabado y domingo.
+    if fecha.weekday() >= 5:
+        return False
+    return not Feriado.objects.filter(fecha=fecha).exists()
+
+
+def sumar_dias_habiles(desde, n):
+    fecha = desde
+    contados = 0
+    while contados < n:
+        fecha += timedelta(days=1)
+        if es_dia_habil(fecha):
+            contados += 1
+    return fecha
+
+
+def dias_habiles_entre(inicio, fin):
+    # Dias habiles despues de 'inicio' y hasta 'fin' (inclusive). 0 si fin <= inicio.
+    dias = 0
+    fecha = inicio
+    while fecha < fin:
+        fecha += timedelta(days=1)
+        if es_dia_habil(fecha):
+            dias += 1
+    return dias
+
+
+def limite_para_recoger(fecha_prestamo):
+    # El usuario tiene hasta el final del siguiente dia habil para recoger su reserva.
+    dia = sumar_dias_habiles(timezone.localdate(fecha_prestamo), 1)
+    return timezone.make_aware(datetime.combine(dia, time.max))
 
 
 def politica_de(usuario):
@@ -35,7 +67,7 @@ def calcular_fecha_limite(usuario):
     dias = usuario.get_max_loan_period()
     if dias is None:
         dias = DIAS_POR_DEFECTO
-    return hoy() + timedelta(days=dias)
+    return sumar_dias_habiles(hoy(), dias)
 
 
 def marcar_vencidos():
@@ -60,8 +92,12 @@ def cancelar_reservas(prestamos):
 
 
 def caducar_reservas():
-    limite = timezone.now() - timedelta(hours=HORAS_PARA_RECOGER)
-    return cancelar_reservas(Prestamo.objects.filter(fecha_prestamo__lt=limite))
+    ahora = timezone.now()
+    pendientes = Prestamo.objects.filter(estado=EstadoPrestamo.RESERVADO)
+    vencidas = [r.pk for r in pendientes if limite_para_recoger(r.fecha_prestamo) < ahora]
+    if not vencidas:
+        return 0
+    return cancelar_reservas(Prestamo.objects.filter(pk__in=vencidas))
 
 
 def actualizar_estados():
@@ -188,8 +224,8 @@ def registrar_devolucion(pk, condicion, observaciones=''):
     prestamo.observaciones = observaciones
     prestamo.save(update_fields=['estado', 'fecha_devolucion', 'condicion_devolucion', 'observaciones'])
 
-    if prestamo.fecha_devolucion > prestamo.fecha_limite:
-        dias_retraso = (prestamo.fecha_devolucion - prestamo.fecha_limite).days
+    dias_retraso = dias_habiles_entre(prestamo.fecha_limite, prestamo.fecha_devolucion)
+    if dias_retraso > 0:
         politica = politica_de(prestamo.usuario)
         factor = politica.dias_suspension_por_dia_retraso if politica else FACTOR_SUSPENSION_POR_DEFECTO
         aplicar_suspension(prestamo.usuario, dias_retraso * factor)

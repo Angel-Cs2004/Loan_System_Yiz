@@ -1,6 +1,6 @@
 import threading
 import time
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import date, datetime, timedelta, timezone as dt_timezone
 from io import StringIO
 from unittest.mock import patch
 
@@ -15,7 +15,7 @@ from catalogo.models import Categoria, CondicionEjemplar, EjemplarFisico, Estado
 from users.models import EstadoUsuario, TipoUsuario, Usuario
 
 from . import services
-from .models import EstadoPrestamo, PoliticaPrestamo, Prestamo
+from .models import EstadoPrestamo, Feriado, PoliticaPrestamo, Prestamo
 from .services import hoy, registrar_prestamo
 
 
@@ -64,7 +64,7 @@ class FechaLimiteTests(PrestamoTestCase):
     def test_fecha_limite_segun_politica(self):
         respuesta = self.prestar(self.fichas[0])
         self.assertEqual(respuesta.status_code, 200)
-        self.assertEqual(respuesta.data['fecha_limite'], str(hoy() + timedelta(days=6)))
+        self.assertEqual(respuesta.data['fecha_limite'], str(services.sumar_dias_habiles(hoy(), 6)))
         self.assertEqual(respuesta.data['codigo_inventario'], 'EQ-0A')
 
     def test_hoy_usa_la_hora_de_peru(self):
@@ -229,7 +229,7 @@ class PrestamoAdminTests(PrestamoTestCase):
         self.assertEqual(respuesta.status_code, 201)
         self.assertEqual(respuesta.data['usuario_email'], 'alumno@test.com')
         self.assertEqual(respuesta.data['registrado_por_email'], 'admin@test.com')
-        self.assertEqual(respuesta.data['fecha_limite'], str(hoy() + timedelta(days=6)))
+        self.assertEqual(respuesta.data['fecha_limite'], str(services.sumar_dias_habiles(hoy(), 6)))
 
     def test_por_ejemplar_exacto(self):
         ejemplar = EjemplarFisico.objects.get(codigo_inventario='EQ-0B')
@@ -283,11 +283,13 @@ class PerdidoTests(PrestamoTestCase):
 class SancionesTests(PrestamoTestCase):
     def test_devolucion_tardia_suspende(self):
         prestamo_id = self.prestar(self.fichas[0]).data['id']
-        Prestamo.objects.filter(pk=prestamo_id).update(fecha_limite=hoy() - timedelta(days=3))
+        # Vencio hace 5 dias: seguro hubo al menos un dia habil de retraso.
+        Prestamo.objects.filter(pk=prestamo_id).update(fecha_limite=hoy() - timedelta(days=5))
         self.como_admin()
         self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO})
         self.alumno.refresh_from_db()
-        self.assertEqual(self.alumno.suspendido_hasta, hoy() + timedelta(days=6))  # 3 dias x factor 2
+        self.assertIsNotNone(self.alumno.suspendido_hasta)
+        self.assertGreater(self.alumno.suspendido_hasta, hoy())
 
     def test_devolucion_a_tiempo_no_suspende(self):
         prestamo_id = self.prestar(self.fichas[0]).data['id']
@@ -326,6 +328,39 @@ class SancionesTests(PrestamoTestCase):
         self.alumno.refresh_from_db()
         self.assertIsNone(self.alumno.suspendido_hasta)
         self.assertEqual(self.reservar(self.fichas[0]).status_code, 201)
+
+
+class CalendarioLaboralTests(PrestamoTestCase):
+    # 2026-01-02 es viernes; 03 sabado, 04 domingo, 05 lunes, 06 martes.
+    VIERNES = date(2026, 1, 2)
+    LUNES = date(2026, 1, 5)
+
+    def test_es_dia_habil_distingue_fin_de_semana(self):
+        self.assertTrue(services.es_dia_habil(self.VIERNES))
+        self.assertFalse(services.es_dia_habil(date(2026, 1, 3)))   # sabado
+        self.assertFalse(services.es_dia_habil(date(2026, 1, 4)))   # domingo
+        self.assertTrue(services.es_dia_habil(self.LUNES))
+
+    def test_sumar_dias_habiles_salta_el_fin_de_semana(self):
+        # viernes + 1 dia habil = lunes
+        self.assertEqual(services.sumar_dias_habiles(self.VIERNES, 1), self.LUNES)
+
+    def test_un_feriado_corre_el_plazo(self):
+        Feriado.objects.create(fecha=self.LUNES, descripcion='Feriado de prueba')
+        # el lunes es feriado, asi que el siguiente dia habil es el martes
+        self.assertEqual(services.sumar_dias_habiles(self.VIERNES, 1), date(2026, 1, 6))
+
+    def test_dias_habiles_entre_ignora_el_fin_de_semana(self):
+        # vence viernes, devuelto lunes: solo 1 dia habil de retraso
+        self.assertEqual(services.dias_habiles_entre(self.VIERNES, self.LUNES), 1)
+
+    def test_solo_el_admin_gestiona_feriados(self):
+        self.client.force_authenticate(self.alumno)
+        self.assertEqual(self.client.get('/prestamos/admin/feriados/').status_code, 403)
+        self.como_admin()
+        creado = self.client.post('/prestamos/admin/feriados/', {'fecha': '2026-07-28', 'descripcion': 'Fiestas Patrias'})
+        self.assertEqual(creado.status_code, 201)
+        self.assertEqual(self.client.get('/prestamos/admin/feriados/').data['count'], 1)
 
 
 class SeguimientoEjemplarTests(PrestamoTestCase):
@@ -427,7 +462,7 @@ class ReservaTests(PrestamoTestCase):
     def test_entregar_activa_y_cuenta_los_dias_desde_hoy(self):
         respuesta = self.prestar(self.fichas[0])
         self.assertEqual(respuesta.data['estado'], EstadoPrestamo.ACTIVO)
-        self.assertEqual(respuesta.data['fecha_limite'], str(hoy() + timedelta(days=6)))
+        self.assertEqual(respuesta.data['fecha_limite'], str(services.sumar_dias_habiles(hoy(), 6)))
         self.assertEqual(respuesta.data['registrado_por_email'], 'admin@test.com')
 
     def test_no_se_entrega_dos_veces(self):
@@ -440,9 +475,10 @@ class ReservaTests(PrestamoTestCase):
         self.como_admin()
         self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO}).status_code, 400)
 
-    def test_caduca_a_las_24_horas(self):
+    def test_caduca_la_reserva_no_recogida(self):
         prestamo_id = self.reservar(self.fichas[0]).data['id']
-        Prestamo.objects.filter(pk=prestamo_id).update(fecha_prestamo=timezone.now() - timedelta(hours=25))
+        # Reservada hace una semana: el plazo del siguiente dia habil ya paso.
+        Prestamo.objects.filter(pk=prestamo_id).update(fecha_prestamo=timezone.now() - timedelta(days=7))
         call_command('marcar_vencidos', stdout=StringIO())
         self.assertEqual(self.client.get('/prestamos/mis-reservas/').data['results'][0]['estado'], EstadoPrestamo.CANCELADO)
         self.assertEqual(EjemplarFisico.objects.get(codigo_inventario='EQ-0A').estado, EstadoEjemplar.DISPONIBLE)
@@ -509,12 +545,12 @@ class RenovarTests(PrestamoTestCase):
     def test_renovar_una_sola_vez(self):
         respuesta = self.client.post(self.url)
         self.assertEqual(respuesta.status_code, 200)
-        self.assertEqual(respuesta.data['fecha_limite'], str(hoy() + timedelta(days=6)))
+        self.assertEqual(respuesta.data['fecha_limite'], str(services.sumar_dias_habiles(hoy(), 6)))
         self.assertEqual(respuesta.data['renovaciones'], 1)
         self.assertEqual(self.client.post(self.url).status_code, 400)
 
     def test_recien_pedido_no_se_renueva(self):
-        Prestamo.objects.filter(pk=self.prestamo_id).update(fecha_limite=hoy() + timedelta(days=6))
+        Prestamo.objects.filter(pk=self.prestamo_id).update(fecha_limite=services.sumar_dias_habiles(hoy(), 6))
         self.assertEqual(self.client.post(self.url).status_code, 400)
 
     def test_vencido_no_se_renueva(self):

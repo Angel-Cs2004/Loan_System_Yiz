@@ -292,7 +292,7 @@ La referencia completa para el frontend (cuerpos, respuestas y errores de cada e
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| POST | `/prestamos/reservar/` | Autenticado | Reservar un recurso (queda `RESERVADO`, 24 h para recogerlo) |
+| POST | `/prestamos/reservar/` | Autenticado | Reservar un recurso (queda `RESERVADO`, hay hasta el siguiente día hábil para recogerlo) |
 | GET | `/prestamos/mis-reservas/` | Autenticado | Ver mis préstamos y reservas |
 | POST | `/prestamos/mis-reservas/{id}/cancelar/` | Autenticado | Cancelar mi reserva antes de recogerla |
 | GET | `/prestamos/admin/reservas/` | Administrador | Historial (`?estado=`, `?usuario=`, `?codigo_inventario=`, `?ficha_recurso=`) |
@@ -305,6 +305,8 @@ La referencia completa para el frontend (cuerpos, respuestas y errores de cada e
 | POST | `/prestamos/admin/reservas/{id}/renovar/` | Administrador | Extender la fecha límite (una vez) |
 | GET | `/prestamos/admin/politicas/` | Administrador | Ver las reglas por tipo de usuario |
 | GET, PATCH | `/prestamos/admin/politicas/{id}/` | Administrador | Cambiar días y máximo de préstamos a la vez |
+| GET, POST | `/prestamos/admin/feriados/` | Administrador | Listar y registrar feriados (días en que la biblioteca cierra) |
+| GET, DELETE | `/prestamos/admin/feriados/{id}/` | Administrador | Ver o eliminar un feriado |
 
 ### Auditoría
 
@@ -353,6 +355,12 @@ ACTIVO o VENCIDO ──► DEVUELTO (devolución) o PERDIDO (pérdida)
 - No se puede superar el máximo de préstamos a la vez de su tipo (las reservas sin recoger también cuentan).
 - Los días se cuentan desde la entrega, no desde la reserva.
 - Una renovación por préstamo, solo si no está vencido.
+
+**Calendario laboral:** la biblioteca atiende de lunes a viernes. El plazo de préstamo se cuenta
+en **días hábiles** (salta fines de semana y feriados), así que la fecha límite siempre cae en un
+día abierto. Los días de retraso para la sanción también se cuentan en días hábiles, y una reserva
+no caduca durante los días cerrados: hay hasta el siguiente día hábil para recogerla. Los feriados
+los administra el administrador en `/prestamos/admin/feriados/`.
 
 **Sanciones por morosidad:** devolver tarde suspende los préstamos de forma automática y
 proporcional al retraso (por defecto 2 días de suspensión por cada día de atraso), y perder un
