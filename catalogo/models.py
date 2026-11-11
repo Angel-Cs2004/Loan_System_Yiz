@@ -90,7 +90,7 @@ class EjemplarFisico(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     ficha_recurso = models.ForeignKey(FichaRecurso, on_delete=models.CASCADE, related_name='ejemplares')
     codigo_inventario = models.CharField(max_length=50, unique=True)
-    estado = models.CharField(max_length=20, choices=EstadoEjemplar.choices, default=EstadoEjemplar.DISPONIBLE)
+    estado = models.CharField(max_length=20, choices=EstadoEjemplar.choices, default=EstadoEjemplar.DISPONIBLE, db_index=True)
     condicion = models.CharField(max_length=20, choices=CondicionEjemplar.choices, default=CondicionEjemplar.BUENO)
     condicion_de_ingreso = models.TextField(blank=True)
 

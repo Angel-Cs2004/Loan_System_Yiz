@@ -65,7 +65,7 @@ class ColaReserva(models.Model):
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='colas')
     ficha_recurso = models.ForeignKey(FichaRecurso, on_delete=models.CASCADE, related_name='cola')
     fecha_solicitud = models.DateTimeField(auto_now_add=True)
-    estado = models.CharField(max_length=20, choices=EstadoCola.choices, default=EstadoCola.ESPERANDO)
+    estado = models.CharField(max_length=20, choices=EstadoCola.choices, default=EstadoCola.ESPERANDO, db_index=True)
 
     class Meta:
         db_table = 'cola_reservas'
@@ -103,6 +103,11 @@ class Prestamo(models.Model):
     class Meta:
         db_table = 'prestamos'
         ordering = ['-fecha_prestamo']
+        indexes = [
+            # Indice compuesto para la consulta caliente de vencidos (estado=ACTIVO AND
+            # fecha_limite < hoy) y para el filtro admin por estado.
+            models.Index(fields=['estado', 'fecha_limite'], name='prestamo_estado_fecha_idx'),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=['ejemplar_fisico'],
