@@ -37,19 +37,19 @@ class UsuariosTestCase(APITestCase):
 
     def reservar(self, usuario):
         self.client.force_authenticate(usuario)
-        respuesta = self.client.post('/prestamos/reservar/', {'ficha_recurso': str(self.ficha.pk)})
+        respuesta = self.client.post('/api/v1/prestamos/reservar/', {'ficha_recurso': str(self.ficha.pk)})
         self.client.force_authenticate(self.admin)
         return respuesta.data['id']
 
     def prestar(self, usuario):
         prestamo_id = self.reservar(usuario)
-        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/entregar/')
+        self.client.post(f'/api/v1/prestamos/admin/reservas/{prestamo_id}/entregar/')
         return prestamo_id
 
 
 class CambioDeEstadoTests(UsuariosTestCase):
     def url(self, usuario):
-        return f'/users/admin/usuarios/{usuario.pk}/'
+        return f'/api/v1/users/admin/usuarios/{usuario.pk}/'
 
     def test_patch_inactivo_con_recurso_en_mano_se_rechaza(self):
         self.prestar(self.alumno)
@@ -70,7 +70,7 @@ class CambioDeEstadoTests(UsuariosTestCase):
     def test_suspender_con_prestamo_se_permite_y_cancela_reservas(self):
         entregado = self.prestar(self.alumno)
         self.client.force_authenticate(self.docente)
-        reserva = self.client.post('/prestamos/reservar/', {'ficha_recurso': str(self.ficha.pk)}).data['id']
+        reserva = self.client.post('/api/v1/prestamos/reservar/', {'ficha_recurso': str(self.ficha.pk)}).data['id']
         self.client.force_authenticate(self.admin)
 
         for usuario in (self.alumno, self.docente):
@@ -82,7 +82,7 @@ class CambioDeEstadoTests(UsuariosTestCase):
 
 class FiltrosTests(UsuariosTestCase):
     def emails(self, consulta):
-        return sorted(u['email'] for u in self.client.get(f'/users/admin/usuarios/{consulta}').data['results'])
+        return sorted(u['email'] for u in self.client.get(f'/api/v1/users/admin/usuarios/{consulta}').data['results'])
 
     def setUp(self):
         super().setUp()
@@ -101,13 +101,13 @@ class FiltrosTests(UsuariosTestCase):
         self.assertEqual(self.emails('?status=SUSPENDIDO'), ['docente@test.com'])
 
     def test_valor_invalido_responde_400(self):
-        self.assertEqual(self.client.get('/users/admin/usuarios/?tipo_usuario=profe').status_code, 400)
-        self.assertEqual(self.client.get('/users/admin/usuarios/?status=borrado').status_code, 400)
+        self.assertEqual(self.client.get('/api/v1/users/admin/usuarios/?tipo_usuario=profe').status_code, 400)
+        self.assertEqual(self.client.get('/api/v1/users/admin/usuarios/?status=borrado').status_code, 400)
 
 
 class OlvideMiPasswordTests(UsuariosTestCase):
     def pedir_enlace(self, email):
-        return self.client.post('/users/password/olvide/', {'email': email})
+        return self.client.post('/api/v1/users/password/olvide/', {'email': email})
 
     def datos_del_enlace(self):
         return dict(re.findall(r'(uid|token)=([^&\s]+)', mail.outbox[-1].body))
@@ -117,11 +117,11 @@ class OlvideMiPasswordTests(UsuariosTestCase):
         self.assertEqual(len(mail.outbox), 1)
         datos = self.datos_del_enlace()
 
-        respuesta = self.client.post('/users/password/restablecer/', {**datos, 'password_nueva': 'OtraClave456!'})
+        respuesta = self.client.post('/api/v1/users/password/restablecer/', {**datos, 'password_nueva': 'OtraClave456!'})
         self.assertEqual(respuesta.status_code, 200)
-        self.assertEqual(self.client.post('/login/', {'email': 'alumno@test.com', 'password': 'OtraClave456!'}).status_code, 200)
+        self.assertEqual(self.client.post('/api/v1/login/', {'email': 'alumno@test.com', 'password': 'OtraClave456!'}).status_code, 200)
 
-        respuesta = self.client.post('/users/password/restablecer/', {**datos, 'password_nueva': 'Tercera789!'})
+        respuesta = self.client.post('/api/v1/users/password/restablecer/', {**datos, 'password_nueva': 'Tercera789!'})
         self.assertEqual(respuesta.status_code, 400)
 
     def test_email_desconocido_responde_igual_y_no_manda_nada(self):
@@ -138,39 +138,39 @@ class OlvideMiPasswordTests(UsuariosTestCase):
         self.pedir_enlace('alumno@test.com')
         datos = self.datos_del_enlace()
         falso = {'uid': datos['uid'], 'token': 'abc-123', 'password_nueva': 'OtraClave456!'}
-        self.assertEqual(self.client.post('/users/password/restablecer/', falso).status_code, 400)
+        self.assertEqual(self.client.post('/api/v1/users/password/restablecer/', falso).status_code, 400)
         debil = {**datos, 'password_nueva': '123'}
-        self.assertEqual(self.client.post('/users/password/restablecer/', debil).status_code, 400)
+        self.assertEqual(self.client.post('/api/v1/users/password/restablecer/', debil).status_code, 400)
 
 
 class AccesoTests(UsuariosTestCase):
     def test_admin_ve_un_usuario(self):
         self.client.force_authenticate(self.admin)
-        respuesta = self.client.get(f'/users/admin/usuarios/{self.alumno.pk}/')
+        respuesta = self.client.get(f'/api/v1/users/admin/usuarios/{self.alumno.pk}/')
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(respuesta.data['email'], 'alumno@test.com')
         self.client.force_authenticate(self.alumno)
-        self.assertEqual(self.client.get(f'/users/admin/usuarios/{self.alumno.pk}/').status_code, 403)
+        self.assertEqual(self.client.get(f'/api/v1/users/admin/usuarios/{self.alumno.pk}/').status_code, 403)
 
     def test_lo_publico_sigue_abierto(self):
-        registro = self.client.post('/users/registro/', {
+        registro = self.client.post('/api/v1/users/registro/', {
             'email': 'nuevo@unsa.edu.pe', 'password': 'ClaveSegura123', 'dni': '10000009', 'cui': '20200009',
         })
         self.assertEqual(registro.status_code, 201)
         # La cuenta queda pendiente de confirmar el correo: aun no puede iniciar sesion.
-        login = self.client.post('/login/', {'email': 'nuevo@unsa.edu.pe', 'password': 'ClaveSegura123'})
+        login = self.client.post('/api/v1/login/', {'email': 'nuevo@unsa.edu.pe', 'password': 'ClaveSegura123'})
         self.assertEqual(login.status_code, 401)
-        self.assertEqual(self.client.post('/users/password/olvide/', {'email': 'x@test.com'}).status_code, 200)
+        self.assertEqual(self.client.post('/api/v1/users/password/olvide/', {'email': 'x@test.com'}).status_code, 200)
         self.assertEqual(self.client.get('/api/schema/').status_code, 200)
 
     def test_lo_privado_pide_sesion(self):
-        self.assertEqual(self.client.get('/catalogo/recursos/').status_code, 401)
-        self.assertEqual(self.client.get('/users/perfil/').status_code, 401)
+        self.assertEqual(self.client.get('/api/v1/catalogo/recursos/').status_code, 401)
+        self.assertEqual(self.client.get('/api/v1/users/perfil/').status_code, 401)
 
 
 class RegistroActivacionTests(APITestCase):
     def registrar(self, email='nuevo@unsa.edu.pe', dni='10000009', cui='20200009'):
-        return self.client.post('/users/registro/', {
+        return self.client.post('/api/v1/users/registro/', {
             'email': email, 'password': 'ClaveSegura123', 'dni': dni, 'cui': cui,
         })
 
@@ -191,30 +191,30 @@ class RegistroActivacionTests(APITestCase):
 
     def test_pendiente_no_inicia_sesion(self):
         self.registrar()
-        login = self.client.post('/login/', {'email': 'nuevo@unsa.edu.pe', 'password': 'ClaveSegura123'})
+        login = self.client.post('/api/v1/login/', {'email': 'nuevo@unsa.edu.pe', 'password': 'ClaveSegura123'})
         self.assertEqual(login.status_code, 401)
 
     def test_activar_con_token_valido(self):
         self.registrar()
-        respuesta = self.client.post('/users/activar/', self.datos_del_enlace())
+        respuesta = self.client.post('/api/v1/users/activar/', self.datos_del_enlace())
         self.assertEqual(respuesta.status_code, 200)
         usuario = Usuario.objects.get(email='nuevo@unsa.edu.pe')
         self.assertEqual(usuario.status, EstadoUsuario.ACTIVO)
         self.assertEqual(len(mail.outbox), 2)  # activacion + aviso de cuenta activa
-        login = self.client.post('/login/', {'email': 'nuevo@unsa.edu.pe', 'password': 'ClaveSegura123'})
+        login = self.client.post('/api/v1/login/', {'email': 'nuevo@unsa.edu.pe', 'password': 'ClaveSegura123'})
         self.assertEqual(login.status_code, 200)
 
     def test_token_invalido_no_activa(self):
         self.registrar()
         malo = {'uid': self.datos_del_enlace()['uid'], 'token': 'abc-123'}
-        self.assertEqual(self.client.post('/users/activar/', malo).status_code, 400)
+        self.assertEqual(self.client.post('/api/v1/users/activar/', malo).status_code, 400)
         self.assertEqual(Usuario.objects.get(email='nuevo@unsa.edu.pe').status, EstadoUsuario.INACTIVO)
 
     def test_activar_dos_veces_es_idempotente(self):
         self.registrar()
         datos = self.datos_del_enlace()
-        self.assertEqual(self.client.post('/users/activar/', datos).status_code, 200)
-        self.assertEqual(self.client.post('/users/activar/', datos).status_code, 200)
+        self.assertEqual(self.client.post('/api/v1/users/activar/', datos).status_code, 200)
+        self.assertEqual(self.client.post('/api/v1/users/activar/', datos).status_code, 200)
 
 
 class LimpiezaTokensTests(APITestCase):
@@ -234,7 +234,7 @@ class LimpiezaTokensTests(APITestCase):
 
 class CorsTests(APITestCase):
     def test_el_front_puede_llamar(self):
-        respuesta = self.client.options('/login/', HTTP_ORIGIN='http://localhost:5173',
+        respuesta = self.client.options('/api/v1/login/', HTTP_ORIGIN='http://localhost:5173',
                                         HTTP_ACCESS_CONTROL_REQUEST_METHOD='POST')
         self.assertEqual(respuesta.headers.get('Access-Control-Allow-Origin'), 'http://localhost:5173')
 
@@ -271,24 +271,24 @@ class ThrottlingTests(APITestCase):
 
     def test_login_se_bloquea_tras_superar_el_limite(self):
         for _ in range(3):
-            self.client.post('/login/', {'email': 'alumno@test.com', 'password': 'incorrecta'})
-        respuesta = self.client.post('/login/', {'email': 'alumno@test.com', 'password': 'incorrecta'})
+            self.client.post('/api/v1/login/', {'email': 'alumno@test.com', 'password': 'incorrecta'})
+        respuesta = self.client.post('/api/v1/login/', {'email': 'alumno@test.com', 'password': 'incorrecta'})
         self.assertEqual(respuesta.status_code, 429)
 
     def test_recuperar_password_se_bloquea(self):
         for _ in range(3):
-            self.client.post('/users/password/olvide/', {'email': 'alumno@test.com'})
-        respuesta = self.client.post('/users/password/olvide/', {'email': 'alumno@test.com'})
+            self.client.post('/api/v1/users/password/olvide/', {'email': 'alumno@test.com'})
+        respuesta = self.client.post('/api/v1/users/password/olvide/', {'email': 'alumno@test.com'})
         self.assertEqual(respuesta.status_code, 429)
 
     def test_registro_se_bloquea(self):
         for i in range(3):
-            respuesta = self.client.post('/users/registro/', {
+            respuesta = self.client.post('/api/v1/users/registro/', {
                 'email': f'nuevo{i}@unsa.edu.pe', 'password': 'ClaveSegura123',
                 'dni': f'2000000{i}', 'cui': f'3000000{i}',
             })
             self.assertEqual(respuesta.status_code, 201)
-        respuesta = self.client.post('/users/registro/', {
+        respuesta = self.client.post('/api/v1/users/registro/', {
             'email': 'nuevo9@unsa.edu.pe', 'password': 'ClaveSegura123', 'dni': '29000009', 'cui': '39000009',
         })
         self.assertEqual(respuesta.status_code, 429)

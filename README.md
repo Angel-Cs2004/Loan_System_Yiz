@@ -253,7 +253,7 @@ npm install
 npm run dev
 ```
 
-Se abre en <http://localhost:5173> y llama a la API por `/api`, que Vite redirige al backend en `http://127.0.0.1:8000` (con el backend corriendo en otro lado: `API_PROXY_TARGET=http://host:puerto npm run dev`). El enlace del correo de recuperación de contraseña apunta a `FRONTEND_URL`, así que en el `.env` del backend debe quedar `FRONTEND_URL=http://localhost:5173`.
+Se abre en <http://localhost:5173> y llama a la API por `/api/v1`, que Vite reenvía al backend en `http://127.0.0.1:8000` (con el backend corriendo en otro lado: `API_PROXY_TARGET=http://host:puerto npm run dev`). El enlace del correo de recuperación de contraseña apunta a `FRONTEND_URL`, así que en el `.env` del backend debe quedar `FRONTEND_URL=http://localhost:5173`.
 
 Para producción, `npm run build` genera la carpeta `dist/`. Si la API se sirve en otra dirección, se indica al compilar con `VITE_API_URL` (ver `frontend/crud_prestamos/.env.example`) y esa dirección debe estar en `CORS_ALLOWED_ORIGINS`.
 
@@ -283,67 +283,67 @@ La referencia completa para el frontend (cuerpos, respuestas y errores de cada e
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| POST | `/users/registro/` | Público | Registro de estudiantes (solo correo institucional; la cuenta queda pendiente de confirmar) |
-| POST | `/users/activar/` | Público | Activa la cuenta con el `uid` y `token` del correo de activación |
-| POST | `/login/` | Público | Obtiene los tokens `access` y `refresh` |
-| POST | `/login/refresh/` | Público | Renueva el token de acceso |
-| POST | `/users/logout/` | Autenticado | Invalida el token `refresh` |
-| POST | `/users/password/olvide/` | Público | Envía por correo el enlace para restablecer la contraseña |
-| POST | `/users/password/restablecer/` | Público | Pone la contraseña nueva con el `uid` y `token` del enlace |
-| GET, PATCH | `/users/perfil/` | Autenticado | Ver y editar el perfil propio |
-| POST | `/users/perfil/password/` | Autenticado | Cambiar la contraseña propia |
+| POST | `/api/v1/users/registro/` | Público | Registro de estudiantes (solo correo institucional; la cuenta queda pendiente de confirmar) |
+| POST | `/api/v1/users/activar/` | Público | Activa la cuenta con el `uid` y `token` del correo de activación |
+| POST | `/api/v1/login/` | Público | Obtiene los tokens `access` y `refresh` |
+| POST | `/api/v1/login/refresh/` | Público | Renueva el token de acceso |
+| POST | `/api/v1/users/logout/` | Autenticado | Invalida el token `refresh` |
+| POST | `/api/v1/users/password/olvide/` | Público | Envía por correo el enlace para restablecer la contraseña |
+| POST | `/api/v1/users/password/restablecer/` | Público | Pone la contraseña nueva con el `uid` y `token` del enlace |
+| GET, PATCH | `/api/v1/users/perfil/` | Autenticado | Ver y editar el perfil propio |
+| POST | `/api/v1/users/perfil/password/` | Autenticado | Cambiar la contraseña propia |
 
 ### Administración de usuarios
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| GET, POST | `/users/admin/usuarios/` | Administrador | Listar (`?q=` DNI, CUI, nombre o email; `?tipo_usuario=`; `?status=`) y crear |
-| GET, PATCH, DELETE | `/users/admin/usuarios/{id}/` | Administrador | Ver, editar, reclasificar, suspender o dar de baja |
+| GET, POST | `/api/v1/users/admin/usuarios/` | Administrador | Listar (`?q=` DNI, CUI, nombre o email; `?tipo_usuario=`; `?status=`) y crear |
+| GET, PATCH, DELETE | `/api/v1/users/admin/usuarios/{id}/` | Administrador | Ver, editar, reclasificar, suspender o dar de baja |
 
 ### Catálogo
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| GET | `/catalogo/recursos/` | Autenticado | Recursos activos (`?q=`, `?categoria=`, `?solo_disponibles=true`) |
-| GET | `/catalogo/recursos/{id}/` | Autenticado | Ver un recurso |
-| GET | `/catalogo/categorias/` | Autenticado | Listar categorías |
-| GET, POST | `/catalogo/admin/recursos/` | Administrador | Todos los recursos con sus ejemplares, y crear uno |
-| GET, PATCH, DELETE | `/catalogo/admin/recursos/{id}/` | Administrador | Ver, editar o eliminar (solo si nunca se prestó) |
-| POST | `/catalogo/admin/recursos/{id}/baja/` | Administrador | Retirar del catálogo (cancela sus reservas sin recoger) |
-| POST | `/catalogo/admin/recursos/{id}/reactivar/` | Administrador | Volver a publicar |
-| GET, POST | `/catalogo/admin/recursos/{id}/ejemplares/` | Administrador | Listar o registrar unidades físicas |
-| GET, PATCH, DELETE | `/catalogo/admin/ejemplares/{id}/` | Administrador | Ver, editar o eliminar una unidad |
-| GET, POST | `/catalogo/admin/categorias/` | Administrador | Listar y crear categorías |
-| GET, PATCH, DELETE | `/catalogo/admin/categorias/{id}/` | Administrador | Ver, editar o eliminar una categoría |
+| GET | `/api/v1/catalogo/recursos/` | Autenticado | Recursos activos (`?q=`, `?categoria=`, `?solo_disponibles=true`) |
+| GET | `/api/v1/catalogo/recursos/{id}/` | Autenticado | Ver un recurso |
+| GET | `/api/v1/catalogo/categorias/` | Autenticado | Listar categorías |
+| GET, POST | `/api/v1/catalogo/admin/recursos/` | Administrador | Todos los recursos con sus ejemplares, y crear uno |
+| GET, PATCH, DELETE | `/api/v1/catalogo/admin/recursos/{id}/` | Administrador | Ver, editar o eliminar (solo si nunca se prestó) |
+| POST | `/api/v1/catalogo/admin/recursos/{id}/baja/` | Administrador | Retirar del catálogo (cancela sus reservas sin recoger) |
+| POST | `/api/v1/catalogo/admin/recursos/{id}/reactivar/` | Administrador | Volver a publicar |
+| GET, POST | `/api/v1/catalogo/admin/recursos/{id}/ejemplares/` | Administrador | Listar o registrar unidades físicas |
+| GET, PATCH, DELETE | `/api/v1/catalogo/admin/ejemplares/{id}/` | Administrador | Ver, editar o eliminar una unidad |
+| GET, POST | `/api/v1/catalogo/admin/categorias/` | Administrador | Listar y crear categorías |
+| GET, PATCH, DELETE | `/api/v1/catalogo/admin/categorias/{id}/` | Administrador | Ver, editar o eliminar una categoría |
 
 ### Préstamos
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| POST | `/prestamos/reservar/` | Autenticado | Reservar un recurso (queda `RESERVADO`, hay hasta el siguiente día hábil para recogerlo) |
-| GET | `/prestamos/mis-reservas/` | Autenticado | Ver mis préstamos y reservas |
-| POST | `/prestamos/mis-reservas/{id}/cancelar/` | Autenticado | Cancelar mi reserva antes de recogerla |
-| GET, POST | `/prestamos/cola/` | Autenticado | Ver mi cola de espera y ponerme en la cola de un recurso agotado |
-| DELETE | `/prestamos/cola/{id}/` | Autenticado | Salir de la cola |
-| GET | `/prestamos/admin/cola/` | Administrador | Ver la cola de espera (`?ficha_recurso=`, `?estado=`) |
-| GET | `/prestamos/admin/reservas/` | Administrador | Historial (`?estado=`, `?usuario=`, `?codigo_inventario=`, `?ficha_recurso=`) |
-| POST | `/prestamos/admin/reservas/` | Administrador | Prestar en el mostrador (queda `ACTIVO`) |
-| GET | `/prestamos/admin/reservas/{id}/` | Administrador | Ver un préstamo |
-| POST | `/prestamos/admin/reservas/{id}/entregar/` | Administrador | Entregar una reserva (pasa a `ACTIVO`) |
-| POST | `/prestamos/admin/reservas/{id}/cancelar/` | Administrador | Cancelar una reserva sin recoger |
-| POST | `/prestamos/admin/reservas/{id}/devolver/` | Administrador | Registrar la devolución |
-| POST | `/prestamos/admin/reservas/{id}/perdido/` | Administrador | Registrar que el recurso se perdió |
-| POST | `/prestamos/admin/reservas/{id}/renovar/` | Administrador | Extender la fecha límite (una vez) |
-| GET | `/prestamos/admin/politicas/` | Administrador | Ver las reglas por tipo de usuario |
-| GET, PATCH | `/prestamos/admin/politicas/{id}/` | Administrador | Cambiar días y máximo de préstamos a la vez |
-| GET, POST | `/prestamos/admin/feriados/` | Administrador | Listar y registrar feriados (días en que la biblioteca cierra) |
-| GET, DELETE | `/prestamos/admin/feriados/{id}/` | Administrador | Ver o eliminar un feriado |
+| POST | `/api/v1/prestamos/reservar/` | Autenticado | Reservar un recurso (queda `RESERVADO`, hay hasta el siguiente día hábil para recogerlo) |
+| GET | `/api/v1/prestamos/mis-reservas/` | Autenticado | Ver mis préstamos y reservas |
+| POST | `/api/v1/prestamos/mis-reservas/{id}/cancelar/` | Autenticado | Cancelar mi reserva antes de recogerla |
+| GET, POST | `/api/v1/prestamos/cola/` | Autenticado | Ver mi cola de espera y ponerme en la cola de un recurso agotado |
+| DELETE | `/api/v1/prestamos/cola/{id}/` | Autenticado | Salir de la cola |
+| GET | `/api/v1/prestamos/admin/cola/` | Administrador | Ver la cola de espera (`?ficha_recurso=`, `?estado=`) |
+| GET | `/api/v1/prestamos/admin/reservas/` | Administrador | Historial (`?estado=`, `?usuario=`, `?codigo_inventario=`, `?ficha_recurso=`) |
+| POST | `/api/v1/prestamos/admin/reservas/` | Administrador | Prestar en el mostrador (queda `ACTIVO`) |
+| GET | `/api/v1/prestamos/admin/reservas/{id}/` | Administrador | Ver un préstamo |
+| POST | `/api/v1/prestamos/admin/reservas/{id}/entregar/` | Administrador | Entregar una reserva (pasa a `ACTIVO`) |
+| POST | `/api/v1/prestamos/admin/reservas/{id}/cancelar/` | Administrador | Cancelar una reserva sin recoger |
+| POST | `/api/v1/prestamos/admin/reservas/{id}/devolver/` | Administrador | Registrar la devolución |
+| POST | `/api/v1/prestamos/admin/reservas/{id}/perdido/` | Administrador | Registrar que el recurso se perdió |
+| POST | `/api/v1/prestamos/admin/reservas/{id}/renovar/` | Administrador | Extender la fecha límite (una vez) |
+| GET | `/api/v1/prestamos/admin/politicas/` | Administrador | Ver las reglas por tipo de usuario |
+| GET, PATCH | `/api/v1/prestamos/admin/politicas/{id}/` | Administrador | Cambiar días y máximo de préstamos a la vez |
+| GET, POST | `/api/v1/prestamos/admin/feriados/` | Administrador | Listar y registrar feriados (días en que la biblioteca cierra) |
+| GET, DELETE | `/api/v1/prestamos/admin/feriados/{id}/` | Administrador | Ver o eliminar un feriado |
 
 ### Auditoría
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| GET | `/auditoria/` | Administrador | Bitácora de acciones sensibles (`?actor=` id, `?accion=`, `?desde=`, `?hasta=` en `YYYY-MM-DD`) |
+| GET | `/api/v1/auditoria/` | Administrador | Bitácora de acciones sensibles (`?actor=` id, `?accion=`, `?desde=`, `?hasta=` en `YYYY-MM-DD`) |
 
 Se registra quién hace qué y cuándo en las acciones sensibles: cambiar el estado, el rol o la
 suspensión de un usuario, darlo de baja; dar de baja, reactivar o eliminar recursos, categorías y
@@ -351,7 +351,7 @@ ejemplares; editar políticas; y marcar un préstamo como perdido o cancelarlo.
 
 ## Reglas de negocio
 
-**Reglas por tipo de usuario** (valores iniciales; el administrador los cambia en `/prestamos/admin/politicas/`):
+**Reglas por tipo de usuario** (valores iniciales; el administrador los cambia en `/api/v1/prestamos/admin/politicas/`):
 
 | Tipo de usuario | Días de préstamo | Máximo a la vez |
 |---|---|---|
@@ -396,7 +396,7 @@ no la recoge, pasa al siguiente. Un suspendido no puede ponerse en cola.
 en **días hábiles** (salta fines de semana y feriados), así que la fecha límite siempre cae en un
 día abierto. Los días de retraso para la sanción también se cuentan en días hábiles, y una reserva
 no caduca durante los días cerrados: hay hasta el siguiente día hábil para recogerla. Los feriados
-los administra el administrador en `/prestamos/admin/feriados/`.
+los administra el administrador en `/api/v1/prestamos/admin/feriados/`.
 
 **Sanciones por morosidad:** devolver tarde suspende los préstamos de forma automática y
 proporcional al retraso (por defecto 2 días de suspensión por cada día de atraso), y perder un
