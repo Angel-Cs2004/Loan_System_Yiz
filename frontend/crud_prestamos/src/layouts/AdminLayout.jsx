@@ -8,6 +8,7 @@ import styles from './Layout.module.css'
 const NAV = [
   { to: '/admin', label: 'Inicio', icon: 'home', end: true },
   { to: '/admin/prestamos', label: 'Préstamos', icon: 'loans' },
+  { to: '/admin/reportes', label: 'Reportes', icon: 'reports' },
   { to: '/admin/mostrador', label: 'Mostrador', icon: 'counter' },
   { to: '/admin/recursos', label: 'Fichas de recursos', icon: 'resources' },
   { to: '/admin/categorias', label: 'Categorías', icon: 'categories' },

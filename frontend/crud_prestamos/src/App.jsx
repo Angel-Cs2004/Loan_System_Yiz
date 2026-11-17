@@ -13,6 +13,7 @@ import Prestamos from './pages/admin/Prestamos'
 import Politicas from './pages/admin/Politicas'
 import RecursoDetalle from './pages/admin/RecursoDetalle'
 import Recursos from './pages/admin/Recursos'
+import Reportes from './pages/admin/Reportes'
 import UsuarioDetalle from './pages/admin/UsuarioDetalle'
 import Usuarios from './pages/admin/Usuarios'
 import Catalogo from './pages/portal/Catalogo'
@@ -46,6 +47,7 @@ export default function App() {
           <Route element={<AdminLayout />}>
             <Route index element={<Inicio />} />
             <Route path="prestamos" element={<Prestamos />} />
+            <Route path="reportes" element={<Reportes />} />
             <Route path="prestamos/:id" element={<PrestamoDetalle />} />
             <Route path="mostrador" element={<Mostrador />} />
             <Route path="recursos" element={<Recursos />} />

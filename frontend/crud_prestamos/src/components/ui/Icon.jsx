@@ -1,6 +1,7 @@
 const PATHS = {
   home: 'M3 11.5 12 4l9 7.5M5.5 10v9.5h13V10',
   loans: 'M4 7h16M4 12h16M4 17h10M18 15l2 2-2 2',
+  reports: 'M4 19V5M4 19h17M8 15l3-4 3 2 5-7',
   counter: 'M3 10h18v9H3zM6 10V6h12v4M9 14h6',
   resources: 'M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4ZM5 17a3 3 0 0 1 3-3h10',
   categories: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
