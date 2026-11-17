@@ -10,6 +10,14 @@ venv/
 # Base de datos local y logs
 db.sqlite3
 *.log
+logs/
+
+# Celery (archivos generados por beat)
+celerybeat-schedule*
+celerybeat.pid
+
+# Archivos estaticos recolectados (collectstatic)
+staticfiles/
 
 # Variables de entorno / secretos
 .env

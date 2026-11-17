@@ -5,6 +5,17 @@ from django.core.validators import RegexValidator
 
 validar_8_digitos = RegexValidator(r'^\d{8}$', 'Debe tener exactamente 8 digitos.')
 
+class TipoUsuario(models.TextChoices):
+    TEACHER = 'TEACHER', 'Profesor'
+    STUDENT = 'STUDENT', 'Estudiante'
+    ADMINISTRATIVE_STAFF = 'ADMINISTRATIVE_STAFF', 'Personal administrativo'
+    ADMINISTRATOR = 'ADMINISTRATOR', 'Administrador'
+
+class EstadoUsuario(models.TextChoices):
+    ACTIVO = 'ACTIVO', 'Activo'
+    INACTIVO = 'INACTIVO', 'Inactivo'
+    SUSPENDIDO = 'SUSPENDIDO', 'Suspendido'
+
 
 class UsuarioManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -21,16 +32,6 @@ class UsuarioManager(BaseUserManager):
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('tipo_usuario', TipoUsuario.ADMINISTRATOR)
         return self.create_user(email, password, **extra_fields)
-class TipoUsuario(models.TextChoices):
-    TEACHER = 'TEACHER', 'Profesor'
-    STUDENT = 'STUDENT', 'Estudiante'
-    ADMINISTRATIVE_STAFF = 'ADMINISTRATIVE_STAFF', 'Personal administrativo'
-    ADMINISTRATOR = 'ADMINISTRATOR', 'Administrador'
-
-class EstadoUsuario(models.TextChoices):
-    ACTIVO = 'ACTIVO', 'Activo'
-    INACTIVO = 'INACTIVO', 'Inactivo'
-    SUSPENDIDO = 'SUSPENDIDO', 'Suspendido'
 
 class Usuario(AbstractUser):
     username = None
@@ -39,6 +40,7 @@ class Usuario(AbstractUser):
     cui = models.CharField(max_length=8, unique=True, null=True, blank=True, validators=[validar_8_digitos])
     tipo_usuario = models.CharField(max_length=25, choices=TipoUsuario.choices)
     status = models.CharField(max_length=20, choices=EstadoUsuario.choices, default=EstadoUsuario.ACTIVO)
+    suspendido_hasta = models.DateField(null=True, blank=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['dni']
@@ -58,5 +60,9 @@ class Usuario(AbstractUser):
         from prestamos.models import PoliticaPrestamo
         politica = PoliticaPrestamo.objects.filter(tipo_usuario=self.tipo_usuario).first()
         return politica.dias_maximo_prestamo if politica else None
+
+    def esta_suspendido(self):
+        from prestamos.services import hoy
+        return self.suspendido_hasta is not None and self.suspendido_hasta >= hoy()
 
     objects = UsuarioManager()

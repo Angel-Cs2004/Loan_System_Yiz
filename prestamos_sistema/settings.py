@@ -39,12 +39,14 @@ INSTALLED_APPS = [
     'corsheaders',
     'catalogo',
     'prestamos',
-    'users'
+    'users',
+    'auditoria',
 ]
 AUTH_USER_MODEL = 'users.Usuario'
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -111,6 +113,14 @@ USE_TZ = True
 
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# WhiteNoise sirve los archivos estaticos (el admin, Swagger) en produccion sin un
+# servidor web extra, comprimidos.
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage'},
+}
 
 
 if config('EMAIL_BACKEND', default='console') == 'smtp':
@@ -136,8 +146,18 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='Sistema de Prestamos 
 
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173').rstrip('/')
 
+# Dominios de correo permitidos para el registro publico (institucionales), separados por coma.
+DOMINIOS_REGISTRO_PERMITIDOS = config('DOMINIOS_REGISTRO_PERMITIDOS', default='unsa.edu.pe', cast=Csv())
+
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default=FRONTEND_URL, cast=Csv())
 PASSWORD_RESET_TIMEOUT = 60 * 60
+
+# Durante los tests se desactiva el throttling para que el conteo no se acumule
+# entre casos (la cache es compartida en el proceso). Los tests de throttling lo
+# reactivan con rates concretos mediante override_settings.
+import sys  # noqa: E402
+
+TESTING = 'test' in sys.argv
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
@@ -148,7 +168,32 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_PAGINATION_CLASS': 'prestamos_sistema.paginacion.Paginacion',
+    # Limite de peticiones (rate limiting). Global para anonimos y autenticados;
+    # los endpoints sensibles usan un scope propio mas estricto (ver vistas).
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': None if TESTING else config('THROTTLE_ANON', default='60/min'),
+        'user': None if TESTING else config('THROTTLE_USER', default='1000/hour'),
+        'login': None if TESTING else config('THROTTLE_LOGIN', default='5/min'),
+        'registro': None if TESTING else config('THROTTLE_REGISTRO', default='10/hour'),
+        'password_reset': None if TESTING else config('THROTTLE_PASSWORD_RESET', default='5/hour'),
+    },
 }
+
+# El throttling guarda sus contadores en la cache. Con varios procesos (gunicorn),
+# conviene una cache compartida en Redis para que el limite sea global y no por proceso.
+# Sin REDIS_CACHE_URL se usa la cache en memoria por defecto de Django.
+REDIS_CACHE_URL = config('REDIS_CACHE_URL', default='')
+if REDIS_CACHE_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': REDIS_CACHE_URL,
+        },
+    }
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
     'REFRESH_TOKEN_LIFETIME': timedelta(minutes=60),
@@ -172,3 +217,121 @@ PASSWORD_HASHERS = [
     'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
     'django.contrib.auth.hashers.ScryptPasswordHasher',
 ]
+
+# --- Celery ---
+# Broker (cola de tareas) y backend de resultados, ambos sobre Redis.
+CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 5 * 60
+
+# En tests, las tareas se ejecutan al instante y en el mismo proceso (sin worker ni
+# Redis), para poder verificar sus efectos (p. ej. el correo generado en mail.outbox).
+CELERY_TASK_ALWAYS_EAGER = TESTING
+CELERY_TASK_EAGER_PROPAGATES = TESTING
+
+# Tareas programadas (Celery Beat). 'crontab(minute=0)' = al minuto 0 de cada hora.
+from celery.schedules import crontab  # noqa: E402
+
+CELERY_BEAT_SCHEDULE = {
+    'actualizar-estados-cada-hora': {
+        'task': 'prestamos.actualizar_estados',
+        'schedule': crontab(minute=0),
+    },
+    'limpiar-tokens-cada-dia': {
+        'task': 'users.limpiar_tokens_expirados',
+        'schedule': crontab(hour=3, minute=0),  # a diario, 3:00 AM
+    },
+}
+
+# --- Logging ---
+# Los logs van a consola (desarrollo) y a un archivo rotatorio (produccion).
+# El nivel es mas verboso en desarrollo (DEBUG) y prudente en produccion (INFO).
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
+
+LOG_LEVEL = config('LOG_LEVEL', default='DEBUG' if DEBUG else 'INFO')
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{asctime} [{levelname}] {name}: {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '[{levelname}] {name}: {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'django.log',
+            'maxBytes': 5 * 1024 * 1024,  # 5 MB por archivo
+            'backupCount': 5,            # conserva 5 archivos antiguos
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
+    },
+    'root': {
+        'handlers': ['console', 'file'],
+        'level': LOG_LEVEL,
+    },
+    'loggers': {
+        # Errores de peticiones (500) y del framework.
+        'django.request': {
+            'handlers': ['console', 'file'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        # Nuestras apps: lo que registremos con logging en el codigo de negocio.
+        'users': {'handlers': ['console', 'file'], 'level': LOG_LEVEL, 'propagate': False},
+        'catalogo': {'handlers': ['console', 'file'], 'level': LOG_LEVEL, 'propagate': False},
+        'prestamos': {'handlers': ['console', 'file'], 'level': LOG_LEVEL, 'propagate': False},
+    },
+}
+
+# --- Sentry (monitoreo de errores, opcional) ---
+# Se activa solo si defines SENTRY_DSN en el .env. Sin DSN, no hace nada.
+SENTRY_DSN = config('SENTRY_DSN', default='')
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        traces_sample_rate=config('SENTRY_TRACES_SAMPLE_RATE', default=0.0, cast=float),
+        environment=config('SENTRY_ENVIRONMENT', default='development'),
+        # No enviar datos personales (DNI, email, etc.) a un servicio externo.
+        send_default_pii=False,
+    )
+
+# --- Seguridad ---
+# Estas dos protecciones no estorban en desarrollo, asi que van siempre activas.
+SECURE_CONTENT_TYPE_NOSNIFF = True  # el navegador no "adivina" tipos MIME (evita XSS)
+X_FRAME_OPTIONS = 'DENY'            # nadie puede embeber la API en un iframe (clickjacking)
+
+# El resto fuerza HTTPS y cookies seguras: solo tiene sentido en produccion (DEBUG=False),
+# porque en local se sirve por HTTP y activarlo romperia el desarrollo.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True          # redirige todo el trafico HTTP a HTTPS
+    SESSION_COOKIE_SECURE = True        # la cookie de sesion solo viaja por HTTPS
+    CSRF_COOKIE_SECURE = True           # el token CSRF solo viaja por HTTPS
+
+    # HSTS: el navegador recuerda que este dominio es solo HTTPS. Potente pero delicado;
+    # por eso el valor es configurable (pon 0 para desactivarlo si aun no tienes HTTPS estable).
+    SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=31536000, cast=int)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+    # Detras de un proxy/balanceador que termina el TLS (Railway, Render, nginx),
+    # asi Django sabe que la peticion original llego por HTTPS.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

@@ -1,5 +1,3 @@
-from datetime import timedelta
-
 from django.contrib.auth import get_user_model
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
@@ -8,14 +6,22 @@ from rest_framework import serializers
 from catalogo.models import CondicionEjemplar, EjemplarFisico, EstadoFicha, FichaRecurso
 from catalogo.services import ejemplares_prestables
 
-from .models import EstadoPrestamo, PoliticaPrestamo, Prestamo
-from .services import HORAS_PARA_RECOGER
+from .models import ColaReserva, EstadoCola, EstadoPrestamo, Feriado, PoliticaPrestamo, Prestamo
+from .services import limite_para_recoger
+
+
+class FeriadoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Feriado
+        fields = ['id', 'fecha', 'descripcion']
+        read_only_fields = ['id']
 
 
 class PoliticaPrestamoSerializer(serializers.ModelSerializer):
     class Meta:
         model = PoliticaPrestamo
-        fields = ['id', 'tipo_usuario', 'dias_maximo_prestamo', 'max_prestamos_simultaneos']
+        fields = ['id', 'tipo_usuario', 'dias_maximo_prestamo', 'max_prestamos_simultaneos',
+                  'dias_suspension_por_dia_retraso', 'dias_suspension_por_perdida']
         read_only_fields = ['id', 'tipo_usuario']
 
 
@@ -87,12 +93,37 @@ class PrestamoSerializer(serializers.ModelSerializer):
     def get_recoger_antes_de(self, prestamo):
         if prestamo.estado != EstadoPrestamo.RESERVADO:
             return None
-        return serializers.DateTimeField().to_representation(prestamo.fecha_prestamo + timedelta(hours=HORAS_PARA_RECOGER))
+        return serializers.DateTimeField().to_representation(limite_para_recoger(prestamo.fecha_prestamo))
 
     def get_con_retraso(self, prestamo) -> bool:
         if prestamo.fecha_devolucion is not None:
             return prestamo.fecha_devolucion > prestamo.fecha_limite
         return prestamo.estado == EstadoPrestamo.VENCIDO
+
+
+class ColaCreateSerializer(serializers.Serializer):
+    ficha_recurso = serializers.PrimaryKeyRelatedField(queryset=FichaRecurso.objects.all())
+
+
+class ColaReservaSerializer(serializers.ModelSerializer):
+    usuario_email = serializers.EmailField(source='usuario.email', read_only=True)
+    ficha_recurso_nombre = serializers.CharField(source='ficha_recurso.nombre', read_only=True)
+    posicion = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ColaReserva
+        fields = ['id', 'usuario', 'usuario_email', 'ficha_recurso', 'ficha_recurso_nombre',
+                  'fecha_solicitud', 'estado', 'posicion']
+        read_only_fields = fields
+
+    @extend_schema_field(OpenApiTypes.INT)
+    def get_posicion(self, entrada):
+        if entrada.estado != EstadoCola.ESPERANDO:
+            return None
+        return ColaReserva.objects.filter(
+            ficha_recurso=entrada.ficha_recurso, estado=EstadoCola.ESPERANDO,
+            fecha_solicitud__lte=entrada.fecha_solicitud,
+        ).count()
 
 
 class DevolucionSerializer(serializers.Serializer):

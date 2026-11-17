@@ -13,8 +13,8 @@ export const registrarPrestamo = data => api.post('/prestamos/admin/reservas/', 
 export const getPrestamo = id => api.get(`/prestamos/admin/reservas/${id}/`)
 export const entregarPrestamo = id => api.post(`/prestamos/admin/reservas/${id}/entregar/`)
 export const cancelarPrestamo = id => api.post(`/prestamos/admin/reservas/${id}/cancelar/`)
-export const devolverPrestamo = (id, condicion) =>
-  api.post(`/prestamos/admin/reservas/${id}/devolver/`, condicion ? { condicion } : {})
+export const devolverPrestamo = (id, condicion, observaciones) =>
+  api.post(`/prestamos/admin/reservas/${id}/devolver/`, { ...(condicion && { condicion}), ...(observaciones && { observaciones})})
 export const marcarPerdido = (id, observaciones) =>
   api.post(`/prestamos/admin/reservas/${id}/perdido/`, observaciones ? { observaciones } : {})
 export const renovarPrestamo = id => api.post(`/prestamos/admin/reservas/${id}/renovar/`)

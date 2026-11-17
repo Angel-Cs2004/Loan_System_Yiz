@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 
-from catalogo.models import CondicionEjemplar, EjemplarFisico
+from catalogo.models import CondicionEjemplar, EjemplarFisico, FichaRecurso
 from users.models import TipoUsuario
 
 
@@ -27,6 +27,8 @@ class PoliticaPrestamo(models.Model):
     tipo_usuario = models.CharField(max_length=25, unique=True, choices=TipoUsuario.choices)
     dias_maximo_prestamo = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     max_prestamos_simultaneos = models.PositiveIntegerField(default=3, validators=[MinValueValidator(1)])
+    dias_suspension_por_dia_retraso = models.PositiveIntegerField(default=2)
+    dias_suspension_por_perdida = models.PositiveIntegerField(default=30)
 
     class Meta:
         db_table = 'politicas_prestamo'
@@ -37,6 +39,47 @@ class PoliticaPrestamo(models.Model):
 
     def __str__(self):
         return f'{self.tipo_usuario}: {self.dias_maximo_prestamo} dias, max {self.max_prestamos_simultaneos}'
+
+
+class Feriado(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    fecha = models.DateField(unique=True)
+    descripcion = models.CharField(max_length=150)
+
+    class Meta:
+        db_table = 'feriados'
+        ordering = ['fecha']
+
+    def __str__(self):
+        return f'{self.fecha} - {self.descripcion}'
+
+
+class EstadoCola(models.TextChoices):
+    ESPERANDO = 'ESPERANDO', 'Esperando'
+    ATENDIDO = 'ATENDIDO', 'Atendido'
+    CANCELADO = 'CANCELADO', 'Cancelado'
+
+
+class ColaReserva(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='colas')
+    ficha_recurso = models.ForeignKey(FichaRecurso, on_delete=models.CASCADE, related_name='cola')
+    fecha_solicitud = models.DateTimeField(auto_now_add=True)
+    estado = models.CharField(max_length=20, choices=EstadoCola.choices, default=EstadoCola.ESPERANDO, db_index=True)
+
+    class Meta:
+        db_table = 'cola_reservas'
+        ordering = ['fecha_solicitud']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['usuario', 'ficha_recurso'],
+                condition=models.Q(estado=EstadoCola.ESPERANDO),
+                name='unica_espera_por_usuario_y_ficha',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.usuario} espera {self.ficha_recurso} ({self.estado})'
 
 
 class Prestamo(models.Model):
@@ -60,6 +103,11 @@ class Prestamo(models.Model):
     class Meta:
         db_table = 'prestamos'
         ordering = ['-fecha_prestamo']
+        indexes = [
+            # Indice compuesto para la consulta caliente de vencidos (estado=ACTIVO AND
+            # fecha_limite < hoy) y para el filtro admin por estado.
+            models.Index(fields=['estado', 'fecha_limite'], name='prestamo_estado_fecha_idx'),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=['ejemplar_fisico'],

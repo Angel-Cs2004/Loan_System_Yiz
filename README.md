@@ -19,7 +19,7 @@ Proyecto de la asignatura *Trabajo Interdisciplinario II* — Escuela Profesiona
 
 ## Funcionalidades
 
-- **Cuentas:** registro público de estudiantes, inicio de sesión con JWT, renovación de token, cierre de sesión con lista negra de tokens, cambio de contraseña y recuperación por correo ("olvidé mi contraseña").
+- **Cuentas:** registro público de estudiantes (solo con correo institucional y confirmación por correo), inicio de sesión con JWT, renovación de token, cierre de sesión con lista negra de tokens, cambio de contraseña y recuperación por correo ("olvidé mi contraseña").
 - **Perfil propio:** cada usuario consulta y edita sus datos básicos.
 - **Administración de usuarios:** el administrador lista (con búsqueda y filtros), crea, modifica, reclasifica, suspende y da de baja usuarios. La baja es lógica: se conserva el historial.
 - **Catálogo:** recursos (fichas) agrupados en categorías, cada uno con sus unidades físicas (ejemplares) identificadas por código de inventario. Los usuarios ven solo los recursos activos y cuántas unidades hay libres.
@@ -149,19 +149,99 @@ python manage.py createsuperuser
 
 `createsuperuser` ya lo crea con `tipo_usuario = ADMINISTRATOR`. Los permisos de administrador de la API dependen de ese campo, no de `is_superuser`.
 
-### Tareas programadas (opcional)
+### Tareas programadas (Celery)
 
-La API actualiza sola los préstamos vencidos y las reservas no recogidas cada vez que alguien consulta o reserva. Para tener la base al día aunque nadie entre al sistema, se puede programar en cron:
+Los préstamos vencidos y las reservas no recogidas se actualizan de forma automática
+mediante **Celery**, sin depender de que alguien consulte el sistema. La tarea
+`prestamos.actualizar_estados` corre **cada hora** (ver `CELERY_BEAT_SCHEDULE` en
+`settings.py`).
+
+Además, cada día de madrugada se ejecuta `flushexpiredtokens` (tarea
+`users.limpiar_tokens_expirados`) para borrar los refresh tokens ya expirados y evitar
+que esa tabla crezca sin control.
+
+Requiere **Redis** como broker (en Arch: `sudo pacman -S redis && sudo systemctl enable --now redis`).
+Configura `CELERY_BROKER_URL` en el `.env` (por defecto `redis://localhost:6379/0`).
+
+En desarrollo se levantan dos procesos aparte del servidor Django:
 
 ```bash
-5 0 * * * cd /ruta/al/proyecto && env/bin/python manage.py marcar_vencidos
+# Worker: ejecuta las tareas
+celery -A prestamos_sistema worker --loglevel=info
+
+# Beat: el "reloj" que encola la tarea cada hora
+celery -A prestamos_sistema beat --loglevel=info
 ```
+
+El comando manual sigue disponible para forzar la actualización en cualquier momento:
+
+```bash
+python manage.py marcar_vencidos
+```
+
+### Correos
+
+Los correos (por ahora, el enlace de "olvidé mi contraseña") se envían en segundo
+plano mediante Celery: la petición del usuario no espera al envío, y si el servidor
+de correo falla se reintenta y se registra en el log. Requiere el worker de Celery
+corriendo (ver arriba).
+
+Por defecto (`EMAIL_BACKEND=console`) los correos se imprimen en la terminal. Para
+enviarlos de verdad con Gmail, en el `.env`: `EMAIL_BACKEND=smtp`, `EMAIL_HOST_USER`
+tu dirección de Gmail y `EMAIL_HOST_PASSWORD` una **contraseña de aplicación** de
+Google (requiere verificación en 2 pasos; no sirve la contraseña normal de la cuenta).
+
+### Logging y monitoreo de errores
+
+Los logs se escriben en consola y en un archivo rotatorio `logs/django.log`
+(5 MB por archivo, 5 copias). El nivel se controla con `LOG_LEVEL` en el `.env`
+(por defecto `DEBUG` en desarrollo e `INFO` en producción). La carpeta `logs/`
+no se versiona.
+
+Para monitoreo de errores en tiempo real se integra **Sentry** (opcional): define
+`SENTRY_DSN` en el `.env` con el DSN de tu proyecto en [sentry.io](https://sentry.io)
+para activarlo. Sin DSN, queda desactivado. No se envían datos personales
+(`send_default_pii=False`).
+
+### Límite de peticiones (throttling)
+
+La API limita la cantidad de peticiones para frenar abuso y fuerza bruta. Hay un
+límite global para usuarios anónimos y autenticados, y límites más estrictos en los
+endpoints sensibles: login, registro y recuperación de contraseña. Todos los valores
+se configuran en el `.env` (`THROTTLE_*`). El límite es por IP, así que si varios
+usuarios comparten la misma red (NAT) conviene subirlos.
+
+Los contadores se guardan en la caché; con varios procesos en producción conviene
+una caché compartida en Redis (`REDIS_CACHE_URL`).
 
 ### Pruebas
 
 ```bash
 python manage.py test
 ```
+
+## Levantar todo con Docker
+
+En lugar de instalar Python, PostgreSQL y Redis a mano, se puede levantar el backend
+completo (API, worker, beat, base de datos y Redis) con un solo comando. Requiere
+**Docker** y el archivo `.env` (copiado de `.env.example`).
+
+```bash
+docker compose up --build
+```
+
+Esto construye la imagen, aplica las migraciones, recolecta los estáticos y arranca los
+cinco servicios. La API queda en <http://localhost:8000> (admin en `/admin/`, docs en
+`/api/docs/`). Las migraciones y los estáticos se ejecutan solos al arrancar el servicio
+`web`; el worker y el beat de Celery corren en sus propios contenedores. Para crear el
+primer administrador, con los contenedores en marcha:
+
+```bash
+docker compose exec web python manage.py createsuperuser
+```
+
+El método con entorno virtual (arriba) sigue siendo válido; Docker es una alternativa, no
+lo reemplaza.
 
 ## Frontend
 
@@ -203,7 +283,8 @@ La referencia completa para el frontend (cuerpos, respuestas y errores de cada e
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| POST | `/users/registro/` | Público | Registro (entra como estudiante) |
+| POST | `/users/registro/` | Público | Registro de estudiantes (solo correo institucional; la cuenta queda pendiente de confirmar) |
+| POST | `/users/activar/` | Público | Activa la cuenta con el `uid` y `token` del correo de activación |
 | POST | `/login/` | Público | Obtiene los tokens `access` y `refresh` |
 | POST | `/login/refresh/` | Público | Renueva el token de acceso |
 | POST | `/users/logout/` | Autenticado | Invalida el token `refresh` |
@@ -239,9 +320,12 @@ La referencia completa para el frontend (cuerpos, respuestas y errores de cada e
 
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| POST | `/prestamos/reservar/` | Autenticado | Reservar un recurso (queda `RESERVADO`, 24 h para recogerlo) |
+| POST | `/prestamos/reservar/` | Autenticado | Reservar un recurso (queda `RESERVADO`, hay hasta el siguiente día hábil para recogerlo) |
 | GET | `/prestamos/mis-reservas/` | Autenticado | Ver mis préstamos y reservas |
 | POST | `/prestamos/mis-reservas/{id}/cancelar/` | Autenticado | Cancelar mi reserva antes de recogerla |
+| GET, POST | `/prestamos/cola/` | Autenticado | Ver mi cola de espera y ponerme en la cola de un recurso agotado |
+| DELETE | `/prestamos/cola/{id}/` | Autenticado | Salir de la cola |
+| GET | `/prestamos/admin/cola/` | Administrador | Ver la cola de espera (`?ficha_recurso=`, `?estado=`) |
 | GET | `/prestamos/admin/reservas/` | Administrador | Historial (`?estado=`, `?usuario=`, `?codigo_inventario=`, `?ficha_recurso=`) |
 | POST | `/prestamos/admin/reservas/` | Administrador | Prestar en el mostrador (queda `ACTIVO`) |
 | GET | `/prestamos/admin/reservas/{id}/` | Administrador | Ver un préstamo |
@@ -252,6 +336,18 @@ La referencia completa para el frontend (cuerpos, respuestas y errores de cada e
 | POST | `/prestamos/admin/reservas/{id}/renovar/` | Administrador | Extender la fecha límite (una vez) |
 | GET | `/prestamos/admin/politicas/` | Administrador | Ver las reglas por tipo de usuario |
 | GET, PATCH | `/prestamos/admin/politicas/{id}/` | Administrador | Cambiar días y máximo de préstamos a la vez |
+| GET, POST | `/prestamos/admin/feriados/` | Administrador | Listar y registrar feriados (días en que la biblioteca cierra) |
+| GET, DELETE | `/prestamos/admin/feriados/{id}/` | Administrador | Ver o eliminar un feriado |
+
+### Auditoría
+
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/auditoria/` | Administrador | Bitácora de acciones sensibles (`?actor=` id, `?accion=`, `?desde=`, `?hasta=` en `YYYY-MM-DD`) |
+
+Se registra quién hace qué y cuándo en las acciones sensibles: cambiar el estado, el rol o la
+suspensión de un usuario, darlo de baja; dar de baja, reactivar o eliminar recursos, categorías y
+ejemplares; editar políticas; y marcar un préstamo como perdido o cancelarlo.
 
 ## Reglas de negocio
 
@@ -290,6 +386,24 @@ ACTIVO o VENCIDO ──► DEVUELTO (devolución) o PERDIDO (pérdida)
 - No se puede superar el máximo de préstamos a la vez de su tipo (las reservas sin recoger también cuentan).
 - Los días se cuentan desde la entrega, no desde la reserva.
 - Una renovación por préstamo, solo si no está vencido.
+
+**Cola de espera:** si un recurso está agotado, el usuario puede ponerse en cola. Cuando una copia
+se libera (por devolución o cancelación), se reserva automáticamente para el primero de la cola
+(orden de llegada) y se le avisa por correo; tiene hasta el siguiente día hábil para recogerla. Si
+no la recoge, pasa al siguiente. Un suspendido no puede ponerse en cola.
+
+**Calendario laboral:** la biblioteca atiende de lunes a viernes. El plazo de préstamo se cuenta
+en **días hábiles** (salta fines de semana y feriados), así que la fecha límite siempre cae en un
+día abierto. Los días de retraso para la sanción también se cuentan en días hábiles, y una reserva
+no caduca durante los días cerrados: hay hasta el siguiente día hábil para recogerla. Los feriados
+los administra el administrador en `/prestamos/admin/feriados/`.
+
+**Sanciones por morosidad:** devolver tarde suspende los préstamos de forma automática y
+proporcional al retraso (por defecto 2 días de suspensión por cada día de atraso), y perder un
+recurso suma una suspensión fija (30 días por defecto). La severidad se configura por tipo de
+usuario en su política (`dias_suspension_por_dia_retraso` y `dias_suspension_por_perdida`). El
+usuario suspendido puede entrar y ver sus préstamos, pero no pedir nuevos hasta la fecha
+`suspendido_hasta`; el administrador puede levantar la suspensión.
 
 **Catálogo:** cada recurso (ficha) tiene unidades físicas (ejemplares) con estado `DISPONIBLE`, `RESERVADO`, `PRESTADO`, `EN_MANTENIMIENTO` o `DADO_DE_BAJA`. `RESERVADO` y `PRESTADO` solo los maneja el sistema. Un ejemplar que vuelve dañado pasa a mantenimiento. Lo que tiene historial no se borra: se da de baja.
 

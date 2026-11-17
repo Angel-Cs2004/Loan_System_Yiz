@@ -11,6 +11,9 @@ from rest_framework.views import APIView
 
 from users.permissions import EsAdministrador
 
+from auditoria.models import AccionAuditoria
+from auditoria.services import registrar
+
 from .models import Categoria, EjemplarFisico, EstadoFicha, FichaRecurso
 from .serializers import CategoriaSerializer, EjemplarFisicoSerializer, FichaRecursoAdminSerializer, FichaRecursoSerializer
 from .services import Conflicto, dar_de_baja_ficha, reactivar_ficha
@@ -42,12 +45,16 @@ def filtrar_catalogo(queryset, params):
 
 class ProtegerHistorialMixin:
     mensaje_protegido = ''
+    accion_auditoria = None
 
     def perform_destroy(self, instancia):
+        descripcion = str(instancia)
         try:
             instancia.delete()
         except ProtectedError:
             raise Conflicto(self.mensaje_protegido)
+        if self.accion_auditoria:
+            registrar(self.request.user, self.accion_auditoria, descripcion)
 
 
 class RecursoListView(generics.ListAPIView):
@@ -106,6 +113,7 @@ class RecursoAdminDetailView(ProtegerHistorialMixin, generics.RetrieveUpdateDest
     permission_classes = [EsAdministrador]
     http_method_names = ['get', 'patch', 'delete']
     mensaje_protegido = 'El recurso tiene historial de prestamos y no se puede eliminar. Dalo de baja en su lugar.'
+    accion_auditoria = AccionAuditoria.RECURSO_ELIMINADO
 
     def get_queryset(self):
         return FichaRecurso.objects.select_related('categoria').prefetch_related('ejemplares').con_disponibilidad()
@@ -117,6 +125,7 @@ class RecursoBajaView(APIView):
     @extend_schema(request=None, responses=FichaRecursoAdminSerializer)
     def post(self, request, pk):
         ficha = dar_de_baja_ficha(get_object_or_404(FichaRecurso, pk=pk))
+        registrar(request.user, AccionAuditoria.RECURSO_BAJA, f"Recurso '{ficha.nombre}'")
         return Response(FichaRecursoAdminSerializer(ficha).data)
 
 
@@ -126,6 +135,7 @@ class RecursoReactivarView(APIView):
     @extend_schema(request=None, responses=FichaRecursoAdminSerializer)
     def post(self, request, pk):
         ficha = reactivar_ficha(get_object_or_404(FichaRecurso, pk=pk))
+        registrar(request.user, AccionAuditoria.RECURSO_REACTIVADO, f"Recurso '{ficha.nombre}'")
         return Response(FichaRecursoAdminSerializer(ficha).data)
 
 
@@ -157,6 +167,7 @@ class EjemplarAdminDetailView(ProtegerHistorialMixin, generics.RetrieveUpdateDes
     permission_classes = [EsAdministrador]
     http_method_names = ['get', 'patch', 'delete']
     mensaje_protegido = 'El ejemplar tiene historial de prestamos y no se puede eliminar. Cambia su estado a DADO_DE_BAJA.'
+    accion_auditoria = AccionAuditoria.EJEMPLAR_ELIMINADO
 
 
 class CategoriaAdminListCreateView(generics.ListCreateAPIView):
@@ -171,3 +182,4 @@ class CategoriaAdminDetailView(ProtegerHistorialMixin, generics.RetrieveUpdateDe
     permission_classes = [EsAdministrador]
     http_method_names = ['get', 'patch', 'delete']
     mensaje_protegido = 'La categoria tiene recursos asociados. Muevelos a otra categoria antes de eliminarla.'
+    accion_auditoria = AccionAuditoria.CATEGORIA_ELIMINADA

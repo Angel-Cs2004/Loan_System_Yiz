@@ -1,9 +1,10 @@
 import threading
 import time
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import date, datetime, timedelta, timezone as dt_timezone
 from io import StringIO
 from unittest.mock import patch
 
+from django.core import mail
 from django.core.management import call_command
 from django.db import IntegrityError, connection, transaction
 from django.test import TransactionTestCase
@@ -15,7 +16,7 @@ from catalogo.models import Categoria, CondicionEjemplar, EjemplarFisico, Estado
 from users.models import EstadoUsuario, TipoUsuario, Usuario
 
 from . import services
-from .models import EstadoPrestamo, PoliticaPrestamo, Prestamo
+from .models import ColaReserva, EstadoCola, EstadoPrestamo, Feriado, PoliticaPrestamo, Prestamo
 from .services import hoy, registrar_prestamo
 
 
@@ -64,7 +65,7 @@ class FechaLimiteTests(PrestamoTestCase):
     def test_fecha_limite_segun_politica(self):
         respuesta = self.prestar(self.fichas[0])
         self.assertEqual(respuesta.status_code, 200)
-        self.assertEqual(respuesta.data['fecha_limite'], str(hoy() + timedelta(days=6)))
+        self.assertEqual(respuesta.data['fecha_limite'], str(services.sumar_dias_habiles(hoy(), 6)))
         self.assertEqual(respuesta.data['codigo_inventario'], 'EQ-0A')
 
     def test_hoy_usa_la_hora_de_peru(self):
@@ -106,9 +107,10 @@ class PoliticaTests(PrestamoTestCase):
 
 
 class VencidosTests(PrestamoTestCase):
-    def test_se_marca_vencido_al_listar(self):
+    def test_vencido_aparece_en_el_listado_tras_la_tarea(self):
         prestamo_id = self.prestar(self.fichas[0]).data['id']
         self.vencer(prestamo_id)
+        call_command('marcar_vencidos', stdout=StringIO())
         resultado = self.client.get('/prestamos/mis-reservas/').data['results'][0]
         self.assertEqual(resultado['estado'], EstadoPrestamo.VENCIDO)
         self.assertTrue(resultado['con_retraso'])
@@ -117,6 +119,7 @@ class VencidosTests(PrestamoTestCase):
         prestamo_id = self.prestar(self.fichas[0]).data['id']
         self.prestar(self.fichas[1])
         self.vencer(prestamo_id)
+        call_command('marcar_vencidos', stdout=StringIO())
         self.como_admin()
         respuesta = self.client.get('/prestamos/admin/reservas/?estado=VENCIDO')
         self.assertEqual([p['id'] for p in respuesta.data['results']], [prestamo_id])
@@ -227,7 +230,7 @@ class PrestamoAdminTests(PrestamoTestCase):
         self.assertEqual(respuesta.status_code, 201)
         self.assertEqual(respuesta.data['usuario_email'], 'alumno@test.com')
         self.assertEqual(respuesta.data['registrado_por_email'], 'admin@test.com')
-        self.assertEqual(respuesta.data['fecha_limite'], str(hoy() + timedelta(days=6)))
+        self.assertEqual(respuesta.data['fecha_limite'], str(services.sumar_dias_habiles(hoy(), 6)))
 
     def test_por_ejemplar_exacto(self):
         ejemplar = EjemplarFisico.objects.get(codigo_inventario='EQ-0B')
@@ -268,7 +271,7 @@ class PerdidoTests(PrestamoTestCase):
         self.assertEqual(ejemplar.estado, EstadoEjemplar.DADO_DE_BAJA)
         self.assertEqual(Prestamo.objects.get(pk=prestamo_id).observaciones, 'Se lo robaron')
         self.assertEqual(self.client.get(f'/catalogo/recursos/{self.fichas[0].pk}/').data['total_ejemplares'], 1)
-        self.assertEqual(self.prestar(self.fichas[0]).status_code, 200)
+        self.assertEqual(self.prestar(self.fichas[0], self.otro).status_code, 200)
 
     def test_un_perdido_no_se_devuelve_ni_se_pierde_dos_veces(self):
         prestamo_id = self.prestar(self.fichas[0]).data['id']
@@ -276,6 +279,89 @@ class PerdidoTests(PrestamoTestCase):
         self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/perdido/')
         self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO}).status_code, 400)
         self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/perdido/').status_code, 400)
+
+
+class SancionesTests(PrestamoTestCase):
+    def test_devolucion_tardia_suspende(self):
+        prestamo_id = self.prestar(self.fichas[0]).data['id']
+        # Vencio hace 5 dias: seguro hubo al menos un dia habil de retraso.
+        Prestamo.objects.filter(pk=prestamo_id).update(fecha_limite=hoy() - timedelta(days=5))
+        self.como_admin()
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO})
+        self.alumno.refresh_from_db()
+        self.assertIsNotNone(self.alumno.suspendido_hasta)
+        self.assertGreater(self.alumno.suspendido_hasta, hoy())
+
+    def test_devolucion_a_tiempo_no_suspende(self):
+        prestamo_id = self.prestar(self.fichas[0]).data['id']
+        self.como_admin()
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO})
+        self.alumno.refresh_from_db()
+        self.assertIsNone(self.alumno.suspendido_hasta)
+
+    def test_perdida_suspende_30_dias(self):
+        prestamo_id = self.prestar(self.fichas[0]).data['id']
+        self.como_admin()
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/perdido/')
+        self.alumno.refresh_from_db()
+        self.assertEqual(self.alumno.suspendido_hasta, hoy() + timedelta(days=30))
+
+    def test_la_suspension_se_acumula(self):
+        prestamo_id = self.prestar(self.fichas[0]).data['id']
+        self.alumno.suspendido_hasta = hoy() + timedelta(days=10)
+        self.alumno.save(update_fields=['suspendido_hasta'])
+        self.como_admin()
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/perdido/')
+        self.alumno.refresh_from_db()
+        self.assertEqual(self.alumno.suspendido_hasta, hoy() + timedelta(days=40))  # 10 + 30
+
+    def test_suspendido_no_puede_pedir(self):
+        self.alumno.suspendido_hasta = hoy() + timedelta(days=5)
+        self.alumno.save(update_fields=['suspendido_hasta'])
+        self.assertEqual(self.reservar(self.fichas[0]).status_code, 400)
+
+    def test_el_admin_levanta_la_suspension(self):
+        self.alumno.suspendido_hasta = hoy() + timedelta(days=5)
+        self.alumno.save(update_fields=['suspendido_hasta'])
+        self.como_admin()
+        respuesta = self.client.patch(f'/users/admin/usuarios/{self.alumno.pk}/', {'suspendido_hasta': None}, format='json')
+        self.assertEqual(respuesta.status_code, 200)
+        self.alumno.refresh_from_db()
+        self.assertIsNone(self.alumno.suspendido_hasta)
+        self.assertEqual(self.reservar(self.fichas[0]).status_code, 201)
+
+
+class CalendarioLaboralTests(PrestamoTestCase):
+    # 2026-01-02 es viernes; 03 sabado, 04 domingo, 05 lunes, 06 martes.
+    VIERNES = date(2026, 1, 2)
+    LUNES = date(2026, 1, 5)
+
+    def test_es_dia_habil_distingue_fin_de_semana(self):
+        self.assertTrue(services.es_dia_habil(self.VIERNES))
+        self.assertFalse(services.es_dia_habil(date(2026, 1, 3)))   # sabado
+        self.assertFalse(services.es_dia_habil(date(2026, 1, 4)))   # domingo
+        self.assertTrue(services.es_dia_habil(self.LUNES))
+
+    def test_sumar_dias_habiles_salta_el_fin_de_semana(self):
+        # viernes + 1 dia habil = lunes
+        self.assertEqual(services.sumar_dias_habiles(self.VIERNES, 1), self.LUNES)
+
+    def test_un_feriado_corre_el_plazo(self):
+        Feriado.objects.create(fecha=self.LUNES, descripcion='Feriado de prueba')
+        # el lunes es feriado, asi que el siguiente dia habil es el martes
+        self.assertEqual(services.sumar_dias_habiles(self.VIERNES, 1), date(2026, 1, 6))
+
+    def test_dias_habiles_entre_ignora_el_fin_de_semana(self):
+        # vence viernes, devuelto lunes: solo 1 dia habil de retraso
+        self.assertEqual(services.dias_habiles_entre(self.VIERNES, self.LUNES), 1)
+
+    def test_solo_el_admin_gestiona_feriados(self):
+        self.client.force_authenticate(self.alumno)
+        self.assertEqual(self.client.get('/prestamos/admin/feriados/').status_code, 403)
+        self.como_admin()
+        creado = self.client.post('/prestamos/admin/feriados/', {'fecha': '2026-07-28', 'descripcion': 'Fiestas Patrias'})
+        self.assertEqual(creado.status_code, 201)
+        self.assertEqual(self.client.get('/prestamos/admin/feriados/').data['count'], 1)
 
 
 class SeguimientoEjemplarTests(PrestamoTestCase):
@@ -377,7 +463,7 @@ class ReservaTests(PrestamoTestCase):
     def test_entregar_activa_y_cuenta_los_dias_desde_hoy(self):
         respuesta = self.prestar(self.fichas[0])
         self.assertEqual(respuesta.data['estado'], EstadoPrestamo.ACTIVO)
-        self.assertEqual(respuesta.data['fecha_limite'], str(hoy() + timedelta(days=6)))
+        self.assertEqual(respuesta.data['fecha_limite'], str(services.sumar_dias_habiles(hoy(), 6)))
         self.assertEqual(respuesta.data['registrado_por_email'], 'admin@test.com')
 
     def test_no_se_entrega_dos_veces(self):
@@ -390,9 +476,11 @@ class ReservaTests(PrestamoTestCase):
         self.como_admin()
         self.assertEqual(self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO}).status_code, 400)
 
-    def test_caduca_a_las_24_horas(self):
+    def test_caduca_la_reserva_no_recogida(self):
         prestamo_id = self.reservar(self.fichas[0]).data['id']
-        Prestamo.objects.filter(pk=prestamo_id).update(fecha_prestamo=timezone.now() - timedelta(hours=25))
+        # Reservada hace una semana: el plazo del siguiente dia habil ya paso.
+        Prestamo.objects.filter(pk=prestamo_id).update(fecha_prestamo=timezone.now() - timedelta(days=7))
+        call_command('marcar_vencidos', stdout=StringIO())
         self.assertEqual(self.client.get('/prestamos/mis-reservas/').data['results'][0]['estado'], EstadoPrestamo.CANCELADO)
         self.assertEqual(EjemplarFisico.objects.get(codigo_inventario='EQ-0A').estado, EstadoEjemplar.DISPONIBLE)
         self.como_admin()
@@ -409,6 +497,92 @@ class ReservaTests(PrestamoTestCase):
         self.como_admin()
         respuesta = self.client.patch(f'/catalogo/admin/ejemplares/{ejemplar.pk}/', {'estado': 'DISPONIBLE'})
         self.assertEqual(respuesta.status_code, 400)
+
+
+class ColaTests(PrestamoTestCase):
+    def setUp(self):
+        super().setUp()
+        self.tercero = Usuario.objects.create_user(
+            'tercero@test.com', 'ClaveSegura123', dni='10000004', cui='20200003', tipo_usuario=TipoUsuario.STUDENT,
+        )
+        self.cuarto = Usuario.objects.create_user(
+            'cuarto@test.com', 'ClaveSegura123', dni='10000005', cui='20200004', tipo_usuario=TipoUsuario.STUDENT,
+        )
+
+    def agotar_con_prestamo(self, ficha):
+        # Una copia prestada (para poder devolverla) y la otra reservada: 0 disponibles.
+        prestamo_id = self.prestar(ficha, self.alumno).data['id']
+        self.reservar(ficha, self.otro)
+        return prestamo_id
+
+    def unirse(self, usuario, ficha):
+        self.client.force_authenticate(usuario)
+        return self.client.post('/prestamos/cola/', {'ficha_recurso': str(ficha.pk)})
+
+    def test_no_se_une_si_hay_disponibles(self):
+        self.assertEqual(self.unirse(self.tercero, self.fichas[0]).status_code, 400)
+
+    def test_unirse_cuando_esta_agotado(self):
+        self.agotar_con_prestamo(self.fichas[0])
+        respuesta = self.unirse(self.tercero, self.fichas[0])
+        self.assertEqual(respuesta.status_code, 201)
+        self.assertEqual(respuesta.data['estado'], EstadoCola.ESPERANDO)
+        self.assertEqual(respuesta.data['posicion'], 1)
+
+    def test_no_se_une_dos_veces(self):
+        self.agotar_con_prestamo(self.fichas[0])
+        self.unirse(self.tercero, self.fichas[0])
+        self.assertEqual(self.unirse(self.tercero, self.fichas[0]).status_code, 400)
+
+    def test_suspendido_no_se_une(self):
+        self.agotar_con_prestamo(self.fichas[0])
+        self.tercero.suspendido_hasta = hoy() + timedelta(days=5)
+        self.tercero.save(update_fields=['suspendido_hasta'])
+        self.assertEqual(self.unirse(self.tercero, self.fichas[0]).status_code, 400)
+
+    def test_al_devolver_se_asigna_al_primero(self):
+        prestamo_id = self.agotar_con_prestamo(self.fichas[0])
+        self.unirse(self.tercero, self.fichas[0])
+        self.unirse(self.cuarto, self.fichas[0])
+        self.como_admin()
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO})
+
+        self.assertEqual(ColaReserva.objects.get(usuario=self.tercero).estado, EstadoCola.ATENDIDO)
+        self.assertEqual(ColaReserva.objects.get(usuario=self.cuarto).estado, EstadoCola.ESPERANDO)
+        asignado = Prestamo.objects.get(usuario=self.tercero, estado=EstadoPrestamo.RESERVADO)
+        self.assertEqual(asignado.ejemplar_fisico.ficha_recurso, self.fichas[0])
+        self.assertTrue(any('disponible' in m.subject.lower() for m in mail.outbox))
+
+    def test_cascada_si_el_primero_no_recoge(self):
+        prestamo_id = self.agotar_con_prestamo(self.fichas[0])
+        self.unirse(self.tercero, self.fichas[0])
+        self.unirse(self.cuarto, self.fichas[0])
+        self.como_admin()
+        self.client.post(f'/prestamos/admin/reservas/{prestamo_id}/devolver/', {'condicion': CondicionEjemplar.BUENO})
+
+        # El tercero no recoge: su reserva caduca y debe pasar al cuarto.
+        asignado = Prestamo.objects.get(usuario=self.tercero, estado=EstadoPrestamo.RESERVADO)
+        Prestamo.objects.filter(pk=asignado.pk).update(fecha_prestamo=timezone.now() - timedelta(days=7))
+        call_command('marcar_vencidos', stdout=StringIO())
+
+        self.assertEqual(Prestamo.objects.get(pk=asignado.pk).estado, EstadoPrestamo.CANCELADO)
+        self.assertEqual(ColaReserva.objects.get(usuario=self.cuarto).estado, EstadoCola.ATENDIDO)
+        self.assertTrue(Prestamo.objects.filter(usuario=self.cuarto, estado=EstadoPrestamo.RESERVADO).exists())
+
+    def test_salir_de_la_cola(self):
+        self.agotar_con_prestamo(self.fichas[0])
+        entrada_id = self.unirse(self.tercero, self.fichas[0]).data['id']
+        self.assertEqual(self.client.delete(f'/prestamos/cola/{entrada_id}/').status_code, 204)
+        self.assertEqual(ColaReserva.objects.get(pk=entrada_id).estado, EstadoCola.CANCELADO)
+
+    def test_admin_ve_la_cola(self):
+        self.agotar_con_prestamo(self.fichas[0])
+        self.unirse(self.tercero, self.fichas[0])
+        self.client.force_authenticate(self.alumno)
+        self.assertEqual(self.client.get('/prestamos/admin/cola/').status_code, 403)
+        self.como_admin()
+        respuesta = self.client.get(f'/prestamos/admin/cola/?ficha_recurso={self.fichas[0].pk}')
+        self.assertEqual(respuesta.data['count'], 1)
 
 
 class MostradorTests(PrestamoTestCase):
@@ -458,12 +632,12 @@ class RenovarTests(PrestamoTestCase):
     def test_renovar_una_sola_vez(self):
         respuesta = self.client.post(self.url)
         self.assertEqual(respuesta.status_code, 200)
-        self.assertEqual(respuesta.data['fecha_limite'], str(hoy() + timedelta(days=6)))
+        self.assertEqual(respuesta.data['fecha_limite'], str(services.sumar_dias_habiles(hoy(), 6)))
         self.assertEqual(respuesta.data['renovaciones'], 1)
         self.assertEqual(self.client.post(self.url).status_code, 400)
 
     def test_recien_pedido_no_se_renueva(self):
-        Prestamo.objects.filter(pk=self.prestamo_id).update(fecha_limite=hoy() + timedelta(days=6))
+        Prestamo.objects.filter(pk=self.prestamo_id).update(fecha_limite=services.sumar_dias_habiles(hoy(), 6))
         self.assertEqual(self.client.post(self.url).status_code, 400)
 
     def test_vencido_no_se_renueva(self):

@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -6,10 +6,19 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from catalogo.models import CondicionEjemplar, EjemplarFisico, EstadoEjemplar, EstadoFicha
+from catalogo.models import CondicionEjemplar, EjemplarFisico, EstadoEjemplar, EstadoFicha, FichaRecurso
 from catalogo.services import ejemplares_prestables, estado_tras_devolucion
 
-from .models import ESTADOS_ENTREGADOS, ESTADOS_PENDIENTES, EstadoPrestamo, PoliticaPrestamo, Prestamo
+from .models import (
+    ESTADOS_ENTREGADOS,
+    ESTADOS_PENDIENTES,
+    ColaReserva,
+    EstadoCola,
+    EstadoPrestamo,
+    Feriado,
+    PoliticaPrestamo,
+    Prestamo,
+)
 
 
 DIAS_POR_DEFECTO = 7
@@ -17,11 +26,46 @@ MAX_PRESTAMOS_POR_DEFECTO = 3
 
 MAX_RENOVACIONES = 1
 
-HORAS_PARA_RECOGER = 24
+FACTOR_SUSPENSION_POR_DEFECTO = 2
+DIAS_SUSPENSION_PERDIDA_POR_DEFECTO = 30
 
 
 def hoy():
     return timezone.localdate()
+
+
+def es_dia_habil(fecha):
+    # La biblioteca atiende de lunes a viernes; weekday() 5 y 6 son sabado y domingo.
+    if fecha.weekday() >= 5:
+        return False
+    return not Feriado.objects.filter(fecha=fecha).exists()
+
+
+def sumar_dias_habiles(desde, n):
+    fecha = desde
+    contados = 0
+    while contados < n:
+        fecha += timedelta(days=1)
+        if es_dia_habil(fecha):
+            contados += 1
+    return fecha
+
+
+def dias_habiles_entre(inicio, fin):
+    # Dias habiles despues de 'inicio' y hasta 'fin' (inclusive). 0 si fin <= inicio.
+    dias = 0
+    fecha = inicio
+    while fecha < fin:
+        fecha += timedelta(days=1)
+        if es_dia_habil(fecha):
+            dias += 1
+    return dias
+
+
+def limite_para_recoger(fecha_prestamo):
+    # El usuario tiene hasta el final del siguiente dia habil para recoger su reserva.
+    dia = sumar_dias_habiles(timezone.localdate(fecha_prestamo), 1)
+    return timezone.make_aware(datetime.combine(dia, time.max))
 
 
 def politica_de(usuario):
@@ -32,7 +76,7 @@ def calcular_fecha_limite(usuario):
     dias = usuario.get_max_loan_period()
     if dias is None:
         dias = DIAS_POR_DEFECTO
-    return hoy() + timedelta(days=dias)
+    return sumar_dias_habiles(hoy(), dias)
 
 
 def marcar_vencidos():
@@ -53,19 +97,37 @@ def cancelar_reservas(prestamos):
         reservados = EjemplarFisico.objects.filter(pk__in=ejemplares, estado=EstadoEjemplar.RESERVADO)
         reservados.filter(condicion=CondicionEjemplar.DANADO).update(estado=EstadoEjemplar.EN_MANTENIMIENTO)
         reservados.update(estado=EstadoEjemplar.DISPONIBLE)
+        for ficha in FichaRecurso.objects.filter(ejemplares__pk__in=ejemplares).distinct():
+            atender_cola(ficha)
         return total
 
 
 def caducar_reservas():
-    limite = timezone.now() - timedelta(hours=HORAS_PARA_RECOGER)
-    return cancelar_reservas(Prestamo.objects.filter(fecha_prestamo__lt=limite))
+    ahora = timezone.now()
+    pendientes = Prestamo.objects.filter(estado=EstadoPrestamo.RESERVADO)
+    vencidas = [r.pk for r in pendientes if limite_para_recoger(r.fecha_prestamo) < ahora]
+    if not vencidas:
+        return 0
+    return cancelar_reservas(Prestamo.objects.filter(pk__in=vencidas))
 
 
 def actualizar_estados():
     return marcar_vencidos(), caducar_reservas()
 
 
+def aplicar_suspension(usuario, dias):
+    if dias <= 0:
+        return
+    # Si ya estaba suspendido, el castigo se acumula al final del actual; si no, parte de hoy.
+    inicio = usuario.suspendido_hasta if (usuario.suspendido_hasta and usuario.suspendido_hasta > hoy()) else hoy()
+    usuario.suspendido_hasta = inicio + timedelta(days=dias)
+    usuario.save(update_fields=['suspendido_hasta'])
+
+
 def validar_puede_prestar(usuario, ficha):
+    if usuario.suspendido_hasta and usuario.suspendido_hasta >= hoy():
+        raise ValidationError(f'Estas suspendido de prestamos hasta el {usuario.suspendido_hasta}.')
+
     pendientes = Prestamo.objects.filter(usuario=usuario, estado__in=ESTADOS_PENDIENTES)
 
     if pendientes.filter(estado=EstadoPrestamo.VENCIDO).exists():
@@ -78,6 +140,64 @@ def validar_puede_prestar(usuario, ficha):
     maximo = politica.max_prestamos_simultaneos if politica else MAX_PRESTAMOS_POR_DEFECTO
     if pendientes.count() >= maximo:
         raise ValidationError(f'Alcanzaste el maximo de {maximo} prestamos simultaneos.')
+
+
+def unirse_a_cola(usuario, ficha):
+    if usuario.suspendido_hasta and usuario.suspendido_hasta >= hoy():
+        raise ValidationError(f'Estas suspendido de prestamos hasta el {usuario.suspendido_hasta}.')
+    if ficha.estado_ficha != EstadoFicha.ACTIVA:
+        raise ValidationError('Este recurso fue dado de baja y no se puede reservar.')
+    if ejemplares_prestables(ficha).exists():
+        raise ValidationError('Hay ejemplares disponibles; reserva directamente en vez de ponerte en cola.')
+    if Prestamo.objects.filter(usuario=usuario, estado__in=ESTADOS_PENDIENTES, ejemplar_fisico__ficha_recurso=ficha).exists():
+        raise ValidationError('Ya tienes un ejemplar de este recurso prestado o reservado.')
+    if ColaReserva.objects.filter(usuario=usuario, ficha_recurso=ficha, estado=EstadoCola.ESPERANDO).exists():
+        raise ValidationError('Ya estas en la cola de este recurso.')
+    return ColaReserva.objects.create(usuario=usuario, ficha_recurso=ficha)
+
+
+def _avisar_recurso_disponible(prestamo):
+    from users.tasks import enviar_correo_task
+    limite = limite_para_recoger(prestamo.fecha_prestamo)
+    enviar_correo_task.delay(
+        'Tu recurso en espera ya esta disponible - Sistema de Prestamos',
+        (
+            f'Hola {prestamo.usuario.first_name or prestamo.usuario.email},\n\n'
+            f'El recurso "{prestamo.ejemplar_fisico.ficha_recurso.nombre}" que esperabas ya esta disponible '
+            f'y quedo reservado a tu nombre. Recogelo antes del {limite:%d/%m/%Y}.\n\n'
+            'Si no lo recoges a tiempo, pasara al siguiente de la cola.'
+        ),
+        [prestamo.usuario.email],
+    )
+
+
+def atender_cola(ficha):
+    siguiente = (
+        ColaReserva.objects.select_for_update(skip_locked=True)
+        .filter(ficha_recurso=ficha, estado=EstadoCola.ESPERANDO)
+        .order_by('fecha_solicitud')
+        .first()
+    )
+    if siguiente is None:
+        return
+    usuario = siguiente.usuario
+    ya_tiene = Prestamo.objects.filter(
+        usuario=usuario, estado__in=ESTADOS_PENDIENTES, ejemplar_fisico__ficha_recurso=ficha,
+    ).exists()
+    if not usuario.is_active or usuario.esta_suspendido() or ya_tiene:
+        siguiente.estado = EstadoCola.CANCELADO
+        siguiente.save(update_fields=['estado'])
+        return atender_cola(ficha)
+    ejemplar = ejemplares_prestables(ficha).select_for_update(skip_locked=True).first()
+    if ejemplar is None:
+        return
+    prestamo = Prestamo.objects.create(usuario=usuario, ejemplar_fisico=ejemplar, estado=EstadoPrestamo.RESERVADO)
+    ejemplar.estado = EstadoEjemplar.RESERVADO
+    ejemplar.save(update_fields=['estado'])
+    siguiente.estado = EstadoCola.ATENDIDO
+    siguiente.save(update_fields=['estado'])
+    _avisar_recurso_disponible(prestamo)
+    return prestamo
 
 
 def registrar_prestamo(usuario, ficha, ejemplar=None, registrado_por=None):
@@ -173,8 +293,16 @@ def registrar_devolucion(pk, condicion, observaciones=''):
     prestamo.observaciones = observaciones
     prestamo.save(update_fields=['estado', 'fecha_devolucion', 'condicion_devolucion', 'observaciones'])
 
+    dias_retraso = dias_habiles_entre(prestamo.fecha_limite, prestamo.fecha_devolucion)
+    if dias_retraso > 0:
+        politica = politica_de(prestamo.usuario)
+        factor = politica.dias_suspension_por_dia_retraso if politica else FACTOR_SUSPENSION_POR_DEFECTO
+        aplicar_suspension(prestamo.usuario, dias_retraso * factor)
+
     ejemplar.estado = estado_tras_devolucion(ejemplar.condicion)
     ejemplar.save(update_fields=['condicion', 'estado'])
+    if ejemplar.estado == EstadoEjemplar.DISPONIBLE:
+        atender_cola(prestamo.ejemplar_fisico.ficha_recurso)
     return prestamo
 
 
@@ -186,6 +314,10 @@ def marcar_perdido(pk, observaciones=''):
     prestamo.estado = EstadoPrestamo.PERDIDO
     prestamo.observaciones = observaciones
     prestamo.save(update_fields=['estado', 'observaciones'])
+
+    politica = politica_de(prestamo.usuario)
+    dias = politica.dias_suspension_por_perdida if politica else DIAS_SUSPENSION_PERDIDA_POR_DEFECTO
+    aplicar_suspension(prestamo.usuario, dias)
 
     ejemplar = _bloquear_ejemplar(prestamo)
     ejemplar.estado = EstadoEjemplar.DADO_DE_BAJA
@@ -210,6 +342,8 @@ def cancelar_prestamo(pk, usuario=None):
     ejemplar = _bloquear_ejemplar(prestamo)
     ejemplar.estado = estado_tras_devolucion(ejemplar.condicion)
     ejemplar.save(update_fields=['estado'])
+    if ejemplar.estado == EstadoEjemplar.DISPONIBLE:
+        atender_cola(prestamo.ejemplar_fisico.ficha_recurso)
     return prestamo
 
 

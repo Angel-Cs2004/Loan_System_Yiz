@@ -4,12 +4,14 @@ from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import ValidationError
 from django.db.models import Q
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import (
+    ActivarCuentaSerializer,
     CambiarPasswordSerializer,
     LogoutSerializer,
     MiTokenObtainPairSerializer,
@@ -19,14 +21,19 @@ from .serializers import (
     UsuarioAdminSerializer,
 )
 from .services import (
+    activar_cuenta,
     aplicar_cambio_de_estado,
     cerrar_sesiones,
+    enviar_correo_activacion,
     enviar_enlace_restablecimiento,
     restablecer_password,
     validar_cambio_de_estado,
 )
 from .permissions import EsAdministrador
 from .models import EstadoUsuario, TipoUsuario, Usuario
+
+from auditoria.models import AccionAuditoria
+from auditoria.services import registrar
 
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 
@@ -47,10 +54,36 @@ class LogoutView(APIView):
 class RegistroUsuarioView(generics.CreateAPIView):
     serializer_class = RegistroUsuarioSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'registro'
+
+    def perform_create(self, serializer):
+        usuario = serializer.save()
+        enviar_correo_activacion(usuario)
+
+
+class ActivarCuentaView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(request=ActivarCuentaSerializer, responses={200: None})
+    def post(self, request):
+        serializer = ActivarCuentaSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        usuario = serializer.validated_data['usuario']
+        if usuario.status == EstadoUsuario.ACTIVO:
+            return Response({'detail': 'La cuenta ya estaba activa. Puedes iniciar sesion.'})
+        # Blindaje: solo se activa una cuenta recien registrada que nunca inicio sesion
+        # (asi un enlace de activacion nunca reactiva una cuenta dada de baja por el admin).
+        if usuario.status != EstadoUsuario.INACTIVO or usuario.last_login is not None:
+            raise ValidationError('Esta cuenta no se puede activar.')
+        activar_cuenta(usuario)
+        return Response({'detail': 'Cuenta activada. Ya puedes iniciar sesion.'})
 
 
 class MiTokenObtainPairView(TokenObtainPairView):
     serializer_class = MiTokenObtainPairSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'login'
 
 
 class PerfilView(generics.RetrieveUpdateAPIView):
@@ -86,6 +119,8 @@ def validar_opcion(params, nombre, opciones):
 
 class SolicitarRestablecimientoView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'password_reset'
 
     @extend_schema(request=SolicitarRestablecimientoSerializer, responses={200: None})
     def post(self, request):
@@ -147,8 +182,22 @@ class UsuarioAdminDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [EsAdministrador]
     http_method_names = ['get', 'patch', 'delete']
 
+    def perform_update(self, serializer):
+        instancia = serializer.instance
+        antes = (instancia.status, instancia.tipo_usuario, instancia.suspendido_hasta)
+        usuario = serializer.save()
+        actor = self.request.user
+        objeto = f'Usuario #{usuario.pk} ({usuario.email})'
+        if usuario.status != antes[0]:
+            registrar(actor, AccionAuditoria.USUARIO_CAMBIO_ESTADO, objeto, f'{antes[0]} -> {usuario.status}')
+        if usuario.tipo_usuario != antes[1]:
+            registrar(actor, AccionAuditoria.USUARIO_CAMBIO_ROL, objeto, f'{antes[1]} -> {usuario.tipo_usuario}')
+        if usuario.suspendido_hasta != antes[2]:
+            registrar(actor, AccionAuditoria.USUARIO_SUSPENSION, objeto, f'suspendido_hasta: {usuario.suspendido_hasta}')
+
     def perform_destroy(self, usuario):
         if usuario.pk == self.request.user.pk:
             raise ValidationError('No puedes darte de baja a ti mismo.')
         validar_cambio_de_estado(usuario, EstadoUsuario.INACTIVO)
         aplicar_cambio_de_estado(usuario, EstadoUsuario.INACTIVO)
+        registrar(self.request.user, AccionAuditoria.USUARIO_BAJA, f'Usuario #{usuario.pk} ({usuario.email})')
