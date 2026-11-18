@@ -29,13 +29,11 @@ function Tooltip({ x, y, W, m, title, value }) {
   )
 }
 
-/** Área/línea de tendencia. data: [{ label, title, value }] */
 export function AreaChart({ data, height = 150 }) {
   const uid = useId().replace(/:/g, '')
   const [hover, setHover] = useState(null)
   const ref = useRef(null)
   const [W, setW] = useState(640)
-  // Se dibuja al ancho real del contenedor: el alto queda fijo y el texto no se agranda
   useEffect(() => {
     const el = ref.current
     if (!el || typeof ResizeObserver === 'undefined') return undefined
@@ -94,7 +92,7 @@ export function AreaChart({ data, height = 150 }) {
   )
 }
 
-/** Dona con leyenda. data: [{ label, value, color }] */
+
 export function Donut({ data, centerValue, centerLabel }) {
   const [hover, setHover] = useState(null)
   const items = data.filter(d => d.value > 0)
@@ -132,7 +130,7 @@ export function Donut({ data, centerValue, centerLabel }) {
             <i className={styles.dot} style={{ background: d.color }} />
             <span>{d.label}</span>
             <strong>{d.value}</strong>
-            <small>{Math.round((d.value / total) * 100)}%</small>
+            <small>{total ? Number(((d.value / total) * 100).toFixed(1)) : 0}%</small>
           </li>
         ))}
       </ul>
@@ -140,7 +138,6 @@ export function Donut({ data, centerValue, centerLabel }) {
   )
 }
 
-/** Barras horizontales. data: [[nombre, valor]] */
 export function HBars({ data }) {
   const max = Math.max(1, ...data.map(([, v]) => v))
   return (

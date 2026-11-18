@@ -12,8 +12,11 @@ const DIA = 86400000
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const MODOS = [['mes', 'Mes'], ['anio', 'Año'], ['rango', 'Rango de fechas']]
 const COLOR_ESTADO = {
-  ACTIVO: '#2563eb', DEVUELTO: '#16a34a', VENCIDO: '#dc2626',
-  RESERVADO: '#d97706', CANCELADO: '#94a3b8',
+  RESERVADO: '#d97706', ACTIVO: '#2563eb', VENCIDO: '#dc2626',
+  DEVUELTO: '#16a34a', CANCELADO: '#94a3b8', PERDIDO: '#7f1d1d',
+}
+const ORDEN_ESTADO = {
+  RESERVADO: 1, ACTIVO: 2, VENCIDO: 3, DEVUELTO: 4, CANCELADO: 5, PERDIDO: 6,
 }
 const PALETA = ['#2563eb', '#0d9488', '#d97706', '#9333ea', '#db2777', '#64748b']
 
@@ -42,7 +45,7 @@ function descargarCSV(prestamos, nombre) {
     ...prestamos.map(p => [p.ficha_recurso_nombre, p.codigo_inventario, p.usuario_email, TIPOS_USUARIO[p.tipo_usuario] || p.tipo_usuario,
       ESTADOS_PRESTAMO[p.estado] || p.estado, p.fecha_prestamo, p.fecha_entrega, p.fecha_limite, p.fecha_devolucion, p.con_retraso ? 'Sí' : 'No']),
   ]
-  const blob = new Blob(['﻿' + filas.map(fila => fila.map(csv).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' })
+  const blob = new Blob(['\uFEFF' + filas.map(fila => fila.map(csv).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a'); a.href = url; a.download = `${nombre}.csv`; a.click()
   URL.revokeObjectURL(url)
@@ -149,7 +152,9 @@ export default function Reportes() {
     return {
       periodo, etiqueta, unidad, serie: puntos, totalLoans: periodo.length,
       topResources: [...byResource].sort((a, b) => b[1] - a[1]).slice(0, 8),
-      estados: [...byStatus].map(([key, value]) => ({ label: ESTADOS_PRESTAMO[key] || key, value, color: COLOR_ESTADO[key] || '#64748b' })),
+      estados: [...byStatus]
+        .sort(([a], [b]) => (ORDEN_ESTADO[a] ?? 99) - (ORDEN_ESTADO[b] ?? 99))
+        .map(([key, value]) => ({ label: ESTADOS_PRESTAMO[key] || key, value, color: COLOR_ESTADO[key] || '#64748b' })),
       tipos: [...byType].sort((a, b) => b[1] - a[1]).map(([key, value], i) => ({ label: TIPOS_USUARIO[key] || key || 'Sin dato', value, color: PALETA[i % PALETA.length] })),
     }
   }, [allLoans, modo, anio, mes, desde, hasta])
@@ -193,7 +198,7 @@ export default function Reportes() {
 
       {error ? <p className={`${ui.panel} ${ui.error}`}>{error}</p> : !report ? <Loading /> : <>
         <section className={`${ui.panel} ${styles.chart}`}>
-          <div className={ui.panelHeading}><div><h3>Evolución de préstamos</h3><p>{report.etiqueta} · {report.totalLoans} {report.totalLoans === 1 ? 'solicitud' : 'solicitudes'} por {report.unidad}</p></div></div>
+          <div className={ui.panelHeading}><div><h3>Evolución de préstamos</h3><p>{report.etiqueta} · {report.totalLoans} {report.totalLoans === 1 ? 'prestamo' : 'prestamos'}</p></div></div>
           {report.serie.length ? <AreaChart data={report.serie} /> : <p className={ui.empty}>No hay actividad en este periodo.</p>}
         </section>
 
@@ -209,17 +214,11 @@ export default function Reportes() {
         </div>
 
         <div className={styles.columns}>
-          <section className={`${ui.panel} ${styles.chart}`}>
-            <div className={ui.panelHeading}><div><h3>Recursos más solicitados</h3><p>{report.etiqueta}</p></div></div>
+          <section className={`${ui.panel} ${styles.chart} ${styles.centeredChart}`}>
+            <div className={ui.panelHeading}><div><h3>Recursos mas solicitados</h3><p>{report.etiqueta}</p></div></div>
             {report.topResources.length ? <HBars data={report.topResources} /> : <p className={ui.empty}>Sin registros para mostrar.</p>}
           </section>
-          <section className={`${ui.panel} ${styles.chart}`}>
-            <div className={ui.panelHeading}><div><h3>Disponibilidad del catálogo</h3><p>Situación actual, no depende del periodo</p></div></div>
-            {totalUnidades
-              ? <Donut data={[{ label: 'Disponibles', value: disponibles, color: '#2563eb' }, { label: 'No disponibles', value: Math.max(0, totalUnidades - disponibles), color: '#cbd5e1' }]}
-                  centerValue={`${pctDisponible}%`} centerLabel="disponible" />
-              : <p className={ui.empty}>No hay ejemplares registrados.</p>}
-          </section>
+          
         </div>
       </>}
     </main>

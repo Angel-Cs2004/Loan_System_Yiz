@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { pagina } from '../../api/client'
+import { pagina, resultados } from '../../api/client'
 import { listRecursosAdmin } from '../../api/catalogo'
 import { listPrestamos } from '../../api/prestamos'
 import { listUsuarios } from '../../api/users'
@@ -16,7 +16,7 @@ const TARJETAS = [
   { key: 'reservados', label: 'Reservas por entregar', hint: 'Esperan en el mostrador', to: '/admin/prestamos?estado=RESERVADO' },
   { key: 'activos', label: 'Préstamos activos', hint: 'Recursos fuera, dentro del plazo', to: '/admin/prestamos?estado=ACTIVO' },
   { key: 'vencidos', label: 'Préstamos vencidos', hint: 'Pasaron su fecha límite', to: '/admin/prestamos?estado=VENCIDO' },
-  { key: 'recursos', label: 'Fichas de recursos activas', hint: 'Fichas en el catálogo', to: '/admin/recursos' },
+  { key: 'ejemplares', label: 'Ejemplares disponibles', hint: 'Ejemplares en el catálogo', to: '/admin/recursos' },
   { key: 'usuarios', label: 'Usuarios activos', hint: 'Pueden pedir préstamos', to: '/admin/usuarios' },
 ]
 
@@ -61,18 +61,21 @@ export default function Inicio() {
   const [vencidos, setVencidos] = useState([])
   const [error, setError] = useState('')
 
-  const cargar = useCallback(async () => {
+const cargar = useCallback(async () => {
     try {
-      const [reservados, activos, totalVencidos, recursos, usuarios, ultimasReservas, ultimosVencidos] = await Promise.all([
+      const [reservados, activos, totalVencidos, ejemplares, usuarios, ultimasReservas, ultimosVencidos] = await Promise.all([
         contar(listPrestamos, { estado: 'RESERVADO' }),
         contar(listPrestamos, { estado: 'ACTIVO' }),
         contar(listPrestamos, { estado: 'VENCIDO' }),
-        contar(listRecursosAdmin, { estado_ficha: 'ACTIVA' }),
+        contar(async p => {
+          const { data } = await listRecursosAdmin({ ...p, page_size: 100 })
+          return { data: { count: pagina(data).results.reduce((s, r) => s + (Number(r.total_ejemplares) || 0), 0) } }
+        }, { estado_ficha: 'ACTIVA' }),
         contar(listUsuarios, { status: 'ACTIVO' }),
         listPrestamos({ estado: 'RESERVADO', page_size: 5 }),
         listPrestamos({ estado: 'VENCIDO', page_size: 5 }),
       ])
-      setConteos({ reservados, activos, vencidos: totalVencidos, recursos, usuarios })
+      setConteos({ reservados, activos, vencidos: totalVencidos, ejemplares, usuarios })
       setReservas(pagina(ultimasReservas.data).results)
       setVencidos(pagina(ultimosVencidos.data).results)
     } catch {
