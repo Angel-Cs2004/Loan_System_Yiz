@@ -5,6 +5,8 @@ import { listRecursos } from '../../api/catalogo'
 import { listPrestamos, registrarPrestamo } from '../../api/prestamos'
 import { getUsuario, listUsuarios } from '../../api/users'
 import PrestamoAcciones from '../../components/admin/PrestamoAcciones'
+import SuspensionAlert from '../../components/SuspensionAlert'
+import { restriccionPrestamo } from '../../utils/sanciones'
 import { Loading } from '../../components/ui/Feedback'
 import Icon from '../../components/ui/Icon'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -69,7 +71,7 @@ export default function Mostrador() {
       const { data } = await listPrestamos({ usuario: usuario.id, page_size: 100 })
       setPendientes(resultados(data).filter(prestamo => PENDIENTES.includes(prestamo.estado)))
     } catch {
-      setPendientes([])
+      setPendientes('ERROR')
     }
   }, [usuario])
 
@@ -81,12 +83,25 @@ export default function Mostrador() {
     setError('')
   }
 
-  const listo = usuario && (modo === 'codigo' ? codigo.trim() : recurso)
+  const bloqueo = usuario ? restriccionPrestamo(usuario, pendientes) : ''
+  const listo = usuario && !bloqueo && (modo === 'codigo' ? codigo.trim() : recurso)
 
   const registrar = async () => {
+    if (!listo || enviando) return
     setEnviando(true)
     setError('')
     try {
+      // Segunda validación; el backend realiza la validación definitiva bajo transacción.
+      const [{ data: actual }, { data: consulta }] = await Promise.all([
+        getUsuario(usuario.id), listPrestamos({ usuario: usuario.id, page_size: 100 }),
+      ])
+      const restriccion = restriccionPrestamo(actual, resultados(consulta))
+      if (restriccion) {
+        setUsuario(actual)
+        setPendientes(resultados(consulta).filter(p => PENDIENTES.includes(p.estado)))
+        setError(restriccion)
+        return
+      }
       const datos = modo === 'codigo'
         ? { usuario: usuario.id, codigo_inventario: codigo.trim() }
         : { usuario: usuario.id, ficha_recurso: recurso.id }
@@ -95,11 +110,12 @@ export default function Mostrador() {
       navigate(`/admin/prestamos/${data.id}`)
     } catch (err) {
       setError(apiError(err))
+    } finally {
       setEnviando(false)
     }
   }
 
-  const vencidos = pendientes?.filter(prestamo => prestamo.estado === 'VENCIDO').length || 0
+  const vencidos = Array.isArray(pendientes) ? pendientes.filter(prestamo => prestamo.estado === 'VENCIDO').length : 0
 
   return (
     <main className={ui.page}>
@@ -151,6 +167,8 @@ export default function Mostrador() {
         )}
       </section>
 
+      {usuario && bloqueo && <SuspensionAlert mensaje={bloqueo} />}
+
       {usuario && (
         <section className={`${ui.panel} ${ui.tablePanel}`}>
           <div className={ui.panelHeading}>
@@ -164,7 +182,9 @@ export default function Mostrador() {
               Tiene {vencidos} préstamo(s) vencido(s): debe devolverlos antes de llevarse otro recurso.
             </p>
           )}
-          {pendientes === null ? (
+          {pendientes === 'ERROR' ? (
+            <p className={ui.empty}>No fue posible verificar los préstamos. Se ha bloqueado el nuevo préstamo por seguridad.</p>
+          ) : pendientes === null ? (
             <Loading />
           ) : !pendientes.length ? (
             <p className={ui.empty}>No tiene préstamos ni reservas pendientes.</p>
@@ -195,7 +215,7 @@ export default function Mostrador() {
         </section>
       )}
 
-      {usuario && (
+      {usuario && !bloqueo && (
         <section className={ui.panel}>
           <h3><span className={styles.step}>3</span> ¿Qué se lleva?</h3>
           <div className={ui.segmented}>

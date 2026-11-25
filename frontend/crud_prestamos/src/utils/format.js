@@ -55,6 +55,8 @@ const TONOS = {
   DEVUELTO: 'neutral',
   BUENO: 'success',
   RESERVADO: 'info',
+  ESPERANDO: 'warning',
+  ATENDIDO: 'success',
   PRESTADO: 'info',
   REGULAR: 'warning',
   EN_MANTENIMIENTO: 'warning',

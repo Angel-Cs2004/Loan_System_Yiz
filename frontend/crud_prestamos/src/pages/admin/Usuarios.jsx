@@ -1,26 +1,31 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { listUsuarios } from '../../api/users'
 import UsuarioEstadoConfirm from '../../components/admin/UsuarioEstadoConfirm'
 import UsuarioForm from '../../components/admin/UsuarioForm'
+import SuspensionForm from '../../components/admin/SuspensionForm'
+import { estaSancionado } from '../../utils/sanciones'
 import { EmptyState, Loading } from '../../components/ui/Feedback'
 import Pagination from '../../components/ui/Pagination'
 import StatusBadge from '../../components/ui/StatusBadge'
 import { useToast } from '../../components/ui/Toast'
 import { useDebounced, usePaginatedList } from '../../hooks/useApiList'
 import ui from '../../styles/components.module.css'
-import { ESTADOS_USUARIO, TIPOS_USUARIO, nombreCompleto } from '../../utils/format'
+import { ESTADOS_USUARIO, TIPOS_USUARIO, formatearFecha, nombreCompleto } from '../../utils/format'
 
 export default function Usuarios() {
   const navigate = useNavigate()
+  const [params] = useSearchParams()
   const toast = useToast()
   const [q, setQ] = useState('')
   const [tipo, setTipo] = useState('')
   const [status, setStatus] = useState('')
+  const [sancionado, setSancionado] = useState(params.get('sancionado') || '')
+  const [suspension, setSuspension] = useState(null)
   const [form, setForm] = useState(null)
   const [baja, setBaja] = useState(null)
   const busqueda = useDebounced(q)
-  const lista = usePaginatedList(listUsuarios, { q: busqueda.trim(), tipo_usuario: tipo, status })
+  const lista = usePaginatedList(listUsuarios, { q: busqueda.trim(), tipo_usuario: tipo, status, sancionado })
 
   return (
     <main className={ui.page}>
@@ -54,6 +59,14 @@ export default function Usuarios() {
               {Object.entries(ESTADOS_USUARIO).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </label>
+          <label className={ui.filter}>
+            Sanción por préstamo
+            <select value={sancionado} onChange={event => setSancionado(event.target.value)}>
+              <option value="">Todos</option>
+              <option value="si">Sancionados</option>
+              <option value="no">Sin sanción vigente</option>
+            </select>
+          </label>
         </div>
 
         {lista.loading && !lista.results.length ? (
@@ -66,7 +79,7 @@ export default function Usuarios() {
           <div className={ui.tableWrap}>
             <table>
               <thead>
-                <tr><th>Usuario</th><th>DNI</th><th>CUI</th><th>Tipo</th><th>Estado</th><th /></tr>
+                <tr><th>Usuario</th><th>DNI</th><th>CUI</th><th>Tipo</th><th>Estado de cuenta</th><th>Sanción</th><th /></tr>
               </thead>
               <tbody>
                 {lista.results.map(usuario => (
@@ -79,9 +92,11 @@ export default function Usuarios() {
                     <td>{usuario.cui || '—'}</td>
                     <td>{TIPOS_USUARIO[usuario.tipo_usuario]}</td>
                     <td><StatusBadge value={usuario.status} labels={ESTADOS_USUARIO} /></td>
+                    <td>{estaSancionado(usuario) ? <><StatusBadge value="SUSPENDIDO" labels={{ SUSPENDIDO: 'Sancionado' }} /><span className={ui.cellSecondary}>Hasta {formatearFecha(usuario.suspendido_hasta)}</span></> : 'Sin sanción'}</td>
                     <td>
                       <div className={ui.rowActions}>
                         <button className={ui.link} onClick={() => setForm({ id: usuario.id })}>Editar</button>
+                        <button className={ui.link} onClick={() => setSuspension(usuario)}>Sanción</button>
                         {usuario.status !== 'INACTIVO' && (
                           <button className={`${ui.link} ${ui.danger}`} onClick={() => setBaja(usuario)}>Dar de baja</button>
                         )}
@@ -110,6 +125,10 @@ export default function Usuarios() {
             }
           }}
         />
+      )}
+      {suspension && (
+        <SuspensionForm usuario={suspension} onClose={() => setSuspension(null)}
+          onSaved={() => { toast.success('Sanción actualizada.'); lista.reload() }} />
       )}
       {baja && (
         <UsuarioEstadoConfirm

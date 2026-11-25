@@ -9,6 +9,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import ValidationError
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import (
     ActivarCuentaSerializer,
@@ -149,6 +150,7 @@ class UsuarioAdminListCreateView(generics.ListCreateAPIView):
         OpenApiParameter('q', str, description='DNI o CUI exacto, o parte del nombre, apellido o email'),
         OpenApiParameter('tipo_usuario', str, description=', '.join(TipoUsuario.values)),
         OpenApiParameter('status', str, description=', '.join(EstadoUsuario.values)),
+        OpenApiParameter('sancionado', str, description='si / no; suspensión de préstamos por fecha'),
     ])
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
@@ -173,6 +175,13 @@ class UsuarioAdminListCreateView(generics.ListCreateAPIView):
         status = validar_opcion(params, 'status', EstadoUsuario)
         if status:
             queryset = queryset.filter(status=status)
+        sancionado = params.get('sancionado', '').strip().lower()
+        if sancionado not in ('', 'si', 'no'):
+            raise ValidationError({'sancionado': 'Usa si o no.'})
+        if sancionado == 'si':
+            queryset = queryset.filter(suspendido_hasta__gte=timezone.localdate())
+        elif sancionado == 'no':
+            queryset = queryset.filter(Q(suspendido_hasta__isnull=True) | Q(suspendido_hasta__lt=timezone.localdate()))
         return queryset
 
 

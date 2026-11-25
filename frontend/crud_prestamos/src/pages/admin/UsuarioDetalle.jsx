@@ -4,6 +4,9 @@ import { listPrestamos } from '../../api/prestamos'
 import { getUsuario } from '../../api/users'
 import UsuarioEstadoConfirm from '../../components/admin/UsuarioEstadoConfirm'
 import UsuarioForm from '../../components/admin/UsuarioForm'
+import SuspensionForm from '../../components/admin/SuspensionForm'
+import SuspensionAlert from '../../components/SuspensionAlert'
+import { estaSancionado } from '../../utils/sanciones'
 import { EmptyState, Loading } from '../../components/ui/Feedback'
 import Icon from '../../components/ui/Icon'
 import Pagination from '../../components/ui/Pagination'
@@ -27,6 +30,7 @@ export default function UsuarioDetalle() {
   const usuario = useResource(getUsuario, id)
   const [estadoFiltro, setEstadoFiltro] = useState('')
   const [editar, setEditar] = useState(false)
+  const [suspension, setSuspension] = useState(false)
   const [cambio, setCambio] = useState(null)
 
   const fetchHistorial = useCallback(params => listPrestamos({ ...params, usuario: id }), [id])
@@ -59,11 +63,12 @@ export default function UsuarioDetalle() {
             <Link className={ui.button} to={`/admin/mostrador?usuario=${persona.id}`}>Registrar préstamo</Link>
           )}
           <button className={`${ui.button} ${ui.secondary}`} onClick={() => setEditar(true)}>Editar</button>
+          <button className={`${ui.button} ${ui.secondary}`} onClick={() => setSuspension(true)}>Gestionar sanción</button>
           {persona.status !== 'ACTIVO' && (
             <button className={ui.button} onClick={() => setCambio('ACTIVO')}>Activar</button>
           )}
           {persona.status === 'ACTIVO' && (
-            <button className={`${ui.button} ${ui.ghostDanger}`} onClick={() => setCambio('SUSPENDIDO')}>Suspender</button>
+            <button className={`${ui.button} ${ui.ghostDanger}`} onClick={() => setCambio('SUSPENDIDO')}>Suspender acceso</button>
           )}
           {persona.status !== 'INACTIVO' && (
             <button className={`${ui.button} ${ui.ghostDanger}`} onClick={() => setCambio('INACTIVO')}>Dar de baja</button>
@@ -71,12 +76,14 @@ export default function UsuarioDetalle() {
         </div>
       </div>
 
+      <SuspensionAlert usuario={persona} />
       <section className={ui.panel}>
         <dl className={ui.detailGrid}>
           <div><dt>Estado</dt><dd><StatusBadge value={persona.status} labels={ESTADOS_USUARIO} /></dd></div>
           <div><dt>DNI</dt><dd>{persona.dni}</dd></div>
           <div><dt>CUI</dt><dd>{persona.cui || '—'}</dd></div>
           <div><dt>Tipo de usuario</dt><dd>{TIPOS_USUARIO[persona.tipo_usuario]}</dd></div>
+          <div><dt>Sanción por préstamo</dt><dd>{estaSancionado(persona) ? `Hasta ${formatearFecha(persona.suspendido_hasta)} (inclusive)` : 'Sin sanción vigente'}</dd></div>
         </dl>
       </section>
 
@@ -124,6 +131,10 @@ export default function UsuarioDetalle() {
         <Pagination page={historial.page} count={historial.count} onChange={historial.setPage} />
       </section>
 
+      {suspension && (
+        <SuspensionForm usuario={persona} onClose={() => setSuspension(false)}
+          onSaved={data => { usuario.setData(data); toast.success('Sanción actualizada.') }} />
+      )}
       {editar && (
         <UsuarioForm
           usuarioId={persona.id}

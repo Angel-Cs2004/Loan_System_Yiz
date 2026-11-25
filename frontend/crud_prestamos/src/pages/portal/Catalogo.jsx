@@ -9,7 +9,7 @@ import styles from './Catalogo.module.css'
 export default function Catalogo() {
   const [query, setQuery] = useState('')
   const [categoria, setCategoria] = useState('')
-  const [soloDisponibles, setSoloDisponibles] = useState(true)
+  const [soloDisponibles, setSoloDisponibles] = useState(false)
   const [categorias, setCategorias] = useState([])
   const busqueda = useDebounced(query.trim())
   const lista = usePaginatedList(listRecursos, {
@@ -61,7 +61,7 @@ export default function Catalogo() {
         <div>
           <span className={ui.eyebrow}>CATÁLOGO</span>
           <h2>Catálogo de recursos</h2>
-          <p>Explora los recursos y resérvalos para recogerlos en el mostrador.</p>
+          <p>Explora los recursos. Si están agotados, puedes apuntarte a la cola de espera.</p>
         </div>
       </div>
 

@@ -19,6 +19,8 @@ function PoliticaForm({ politicaId, onClose, onSaved }) {
         setForm({
           dias_maximo_prestamo: data.dias_maximo_prestamo,
           max_prestamos_simultaneos: data.max_prestamos_simultaneos,
+          dias_suspension_por_dia_retraso: data.dias_suspension_por_dia_retraso,
+          dias_suspension_por_perdida: data.dias_suspension_por_perdida,
         })
       })
       .catch(err => setError(apiError(err)))
@@ -30,6 +32,8 @@ function PoliticaForm({ politicaId, onClose, onSaved }) {
     await updatePolitica(politicaId, {
       dias_maximo_prestamo: Number(form.dias_maximo_prestamo),
       max_prestamos_simultaneos: Number(form.max_prestamos_simultaneos),
+      dias_suspension_por_dia_retraso: Number(form.dias_suspension_por_dia_retraso),
+      dias_suspension_por_perdida: Number(form.dias_suspension_por_perdida),
     })
     onSaved()
   }
@@ -55,6 +59,14 @@ function PoliticaForm({ politicaId, onClose, onSaved }) {
             Préstamos simultáneos
             <input type="number" min={1} value={form.max_prestamos_simultaneos}
               onChange={campo('max_prestamos_simultaneos')} required />
+          </label>
+          <label>
+            Días de sanción por día hábil de retraso
+            <input type="number" min={0} value={form.dias_suspension_por_dia_retraso} onChange={campo('dias_suspension_por_dia_retraso')} required />
+          </label>
+          <label>
+            Días de sanción por pérdida del recurso
+            <input type="number" min={0} value={form.dias_suspension_por_perdida} onChange={campo('dias_suspension_por_perdida')} required />
           </label>
           <span className={`${ui.wide} ${ui.hint}`}>
             Los cambios valen para los préstamos nuevos; los que ya están en curso conservan su fecha límite.
@@ -91,7 +103,7 @@ export default function Politicas() {
         <div>
           <span className={ui.eyebrow}>REGLAS</span>
           <h2>Políticas de préstamo</h2>
-          <p>Cuántos días dura un préstamo y cuántos puede tener a la vez cada tipo de usuario.</p>
+          <p>Plazos, máximos de préstamos y sanciones por retraso o pérdida según tipo de usuario.</p>
         </div>
       </div>
 
@@ -106,7 +118,7 @@ export default function Politicas() {
           <div className={ui.tableWrap}>
             <table>
               <thead>
-                <tr><th>Tipo de usuario</th><th>Días máximos</th><th>Préstamos simultáneos</th><th /></tr>
+                <tr><th>Tipo de usuario</th><th>Días máximos</th><th>Préstamos simultáneos</th><th>Sanción/día</th><th>Sanción/pérdida</th><th /></tr>
               </thead>
               <tbody>
                 {politicas.map(politica => (
@@ -114,6 +126,8 @@ export default function Politicas() {
                     <td><strong>{TIPOS_USUARIO[politica.tipo_usuario] || politica.tipo_usuario}</strong></td>
                     <td>{politica.dias_maximo_prestamo} días</td>
                     <td>{politica.max_prestamos_simultaneos}</td>
+                    <td>{politica.dias_suspension_por_dia_retraso} días</td>
+                    <td>{politica.dias_suspension_por_perdida} días</td>
                     <td>
                       <div className={ui.rowActions}>
                         <button className={ui.link} onClick={() => setEditar(politica.id)}>Editar</button>

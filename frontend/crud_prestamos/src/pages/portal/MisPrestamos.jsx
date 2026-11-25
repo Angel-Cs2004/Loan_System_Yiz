@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiError } from '../../api/client'
 import { cancelarMiPrestamo, listMisPrestamos } from '../../api/prestamos'
+import { listMisColas, salirCola } from '../../api/cola'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import { EmptyState, Loading } from '../../components/ui/Feedback'
 import StatusBadge from '../../components/ui/StatusBadge'
@@ -48,13 +49,17 @@ function Plazo({ prestamo }) {
 export default function MisPrestamos() {
   const toast = useToast()
   const [prestamos, setPrestamos] = useState(null)
+  const [colas, setColas] = useState(null)
+  const [salir, setSalir] = useState(null)
   const [error, setError] = useState('')
   const [vista, setVista] = useState('pendientes')
   const [cancelar, setCancelar] = useState(null)
 
   const cargar = useCallback(async () => {
     try {
-      setPrestamos(await listMisPrestamos())
+      const [datosPrestamos, datosColas] = await Promise.all([listMisPrestamos(), listMisColas()])
+      setPrestamos(datosPrestamos)
+      setColas(datosColas)
       setError('')
     } catch (err) {
       setError(apiError(err))
@@ -81,6 +86,9 @@ export default function MisPrestamos() {
         <button className={vista === 'pendientes' ? ui.segmentActive : ''} onClick={() => setVista('pendientes')}>
           En curso ({pendientes.length})
         </button>
+        <button className={vista === 'colas' ? ui.segmentActive : ''} onClick={() => setVista('colas')}>
+          En espera ({colas?.length ?? '…'})
+        </button>
         <button className={vista === 'historial' ? ui.segmentActive : ''} onClick={() => setVista('historial')}>
           Historial ({historial.length})
         </button>
@@ -90,6 +98,22 @@ export default function MisPrestamos() {
         <p className={`${ui.panel} ${ui.error}`}>{error}</p>
       ) : !prestamos ? (
         <Loading />
+      ) : vista === 'colas' ? (
+        <section className={`${ui.panel} ${ui.tablePanel}`}>
+          {colas?.length ? (
+            <div className={ui.tableWrap}><table><thead><tr>
+              <th>Recurso</th><th>Solicitud</th><th>Posición en la cola</th><th>Estado</th><th />
+            </tr></thead><tbody>
+              {colas.map(entrada => <tr key={entrada.id}>
+                <td><strong>{entrada.ficha_recurso_nombre}</strong></td>
+                <td>{formatearFechaHora(entrada.fecha_solicitud)}</td>
+                <td>{entrada.posicion ?? '—'}</td>
+                <td>Esperando</td>
+                <td><button className={`${ui.link} ${ui.danger}`} onClick={() => setSalir(entrada)}>Salir de la cola</button></td>
+              </tr>)}
+            </tbody></table></div>
+          ) : <p className={ui.empty}>No tienes solicitudes en espera. Busca recursos agotados en el catálogo.</p>}
+        </section>
       ) : vista === 'pendientes' ? (
         pendientes.length ? (
           <div className={styles.list}>
@@ -149,6 +173,15 @@ export default function MisPrestamos() {
         </section>
       )}
 
+      {salir && (
+        <ConfirmDialog
+          title="Salir de la cola"
+          message={`Se cancelará tu solicitud para ${salir.ficha_recurso_nombre}. Perderás tu posición en la cola.`}
+          confirmLabel="Salir de la cola" danger
+          onConfirm={async () => { await salirCola(salir.id); toast.success('Saliste de la cola.'); cargar() }}
+          onClose={() => setSalir(null)}
+        />
+      )}
       {cancelar && (
         <ConfirmDialog
           title="Cancelar reserva"

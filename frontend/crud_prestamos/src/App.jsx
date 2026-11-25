@@ -16,6 +16,7 @@ import Recursos from './pages/admin/Recursos'
 import Reportes from './pages/admin/Reportes'
 import UsuarioDetalle from './pages/admin/UsuarioDetalle'
 import Usuarios from './pages/admin/Usuarios'
+import ColaEspera from './pages/admin/ColaEspera'
 import Catalogo from './pages/portal/Catalogo'
 import MisPrestamos from './pages/portal/MisPrestamos'
 import RecursoPortal from './pages/portal/RecursoPortal'
@@ -54,6 +55,7 @@ export default function App() {
             <Route path="recursos/:id" element={<RecursoDetalle />} />
             <Route path="categorias" element={<Categorias />} />
             <Route path="politicas" element={<Politicas />} />
+            <Route path="cola" element={<ColaEspera />} />
             <Route path="usuarios" element={<Usuarios />} />
             <Route path="usuarios/:id" element={<UsuarioDetalle />} />
             <Route path="perfil" element={<Perfil />} />

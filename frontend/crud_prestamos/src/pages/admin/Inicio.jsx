@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { pagina, resultados } from '../../api/client'
 import { listRecursosAdmin } from '../../api/catalogo'
 import { listPrestamos } from '../../api/prestamos'
+import { listColasAdmin } from '../../api/cola'
 import { listUsuarios } from '../../api/users'
 import PrestamoAcciones from '../../components/admin/PrestamoAcciones'
 import { Loading } from '../../components/ui/Feedback'
@@ -17,7 +18,9 @@ const TARJETAS = [
   { key: 'activos', label: 'Préstamos activos', hint: 'Recursos fuera, dentro del plazo', to: '/admin/prestamos?estado=ACTIVO' },
   { key: 'vencidos', label: 'Préstamos vencidos', hint: 'Pasaron su fecha límite', to: '/admin/prestamos?estado=VENCIDO' },
   { key: 'ejemplares', label: 'Ejemplares disponibles', hint: 'Ejemplares en el catálogo', to: '/admin/recursos' },
-  { key: 'usuarios', label: 'Usuarios activos', hint: 'Pueden pedir préstamos', to: '/admin/usuarios' },
+  { key: 'usuarios', label: 'Usuarios activos', hint: 'Cuentas activas (pueden tener restricciones)', to: '/admin/usuarios' },
+  { key: 'sancionados', label: 'Usuarios sancionados', hint: 'No pueden solicitar nuevos préstamos', to: '/admin/usuarios?sancionado=si' },
+  { key: 'colas', label: 'Cola de espera', hint: 'Solicitudes esperando recursos', to: '/admin/cola' },
 ]
 
 function ListaCorta({ titulo, descripcion, prestamos, vacio, plazo, onDone, verTodo }) {
@@ -63,7 +66,7 @@ export default function Inicio() {
 
 const cargar = useCallback(async () => {
     try {
-      const [reservados, activos, totalVencidos, ejemplares, usuarios, ultimasReservas, ultimosVencidos] = await Promise.all([
+      const [reservados, activos, totalVencidos, ejemplares, usuarios, sancionados, colas, ultimasReservas, ultimosVencidos] = await Promise.all([
         contar(listPrestamos, { estado: 'RESERVADO' }),
         contar(listPrestamos, { estado: 'ACTIVO' }),
         contar(listPrestamos, { estado: 'VENCIDO' }),
@@ -72,10 +75,12 @@ const cargar = useCallback(async () => {
           return { data: { count: pagina(data).results.reduce((s, r) => s + (Number(r.total_ejemplares) || 0), 0) } }
         }, { estado_ficha: 'ACTIVA' }),
         contar(listUsuarios, { status: 'ACTIVO' }),
+        contar(listUsuarios, { sancionado: 'si' }),
+        contar(listColasAdmin, { estado: 'ESPERANDO' }),
         listPrestamos({ estado: 'RESERVADO', page_size: 5 }),
         listPrestamos({ estado: 'VENCIDO', page_size: 5 }),
       ])
-      setConteos({ reservados, activos, vencidos: totalVencidos, ejemplares, usuarios })
+      setConteos({ reservados, activos, vencidos: totalVencidos, ejemplares, usuarios, sancionados, colas })
       setReservas(pagina(ultimasReservas.data).results)
       setVencidos(pagina(ultimosVencidos.data).results)
     } catch {
@@ -114,7 +119,7 @@ const cargar = useCallback(async () => {
 
           <ListaCorta
             titulo="Reservas por entregar"
-            descripcion="Tienen 24 horas para recogerse; luego se cancelan solas."
+            descripcion="Se recogen hasta el final del siguiente día hábil, excluidos feriados."
             prestamos={reservas}
             vacio="No hay reservas esperando."
             plazo={prestamo => tiempoRestante(prestamo.recoger_antes_de)}

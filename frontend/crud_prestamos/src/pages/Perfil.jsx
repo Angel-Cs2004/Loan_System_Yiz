@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { apiError } from '../api/client'
 import { cambiarPassword, updatePerfil } from '../api/auth'
 import StatusBadge from '../components/ui/StatusBadge'
+import SuspensionAlert from '../components/SuspensionAlert'
 import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../context/AuthContext'
 import ui from '../styles/components.module.css'
@@ -67,6 +68,7 @@ export default function Perfil() {
         <StatusBadge value={user.status} labels={ESTADOS_USUARIO} />
       </div>
 
+      <SuspensionAlert usuario={user} />
       <section className={ui.panel}>
         <h3>Datos de la cuenta</h3>
         <dl className={ui.detailGrid}>
